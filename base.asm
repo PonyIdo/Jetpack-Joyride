@@ -41,8 +41,8 @@ enemy_3_y DW 96h ; Y postion of the enemy 3 - 300
 
 
 ; coin property
-coin_x DW 140h ; X postion of the enemy 3
-coin_y DW 50h ; Y postion of the enemy 3 - 300
+coin_x DW 140h ; X postion of the coin
+coin_y DW 50h ; Y postion of the coin
 
 current_height DW 40
 current_width DW 12
@@ -66,14 +66,15 @@ TEXT_PLAYER_LIVES DB '0', '$'
 TEXT_PLAYER_COINS DB '0', '$'
 TEXT_GAME_END_MENU DB 'GAME OVER', '$'
 TEXT_PLAY_AGAIN DB 'Press enter to play again', '$'
+TEXT_COINS_HEADER DB 'MadanimCoins:', '$'
 
 filename_player db 'pic.bmp',0
 filename_enemy db 'pics.bmp',0
 filename_coin db 'coin.bmp',0
 
 
-current_x DW 0Ah ; X postion of the charcter
-current_y DW 0Ah ; Y postion of the charcter
+current_x DW 0Ah ; X postion of the current object
+current_y DW 0Ah ; Y postion of the current object
 
 
 filehandle dw ?
@@ -248,16 +249,6 @@ proc CheckIntersection
 
 
 
-
-
-
-
-
-
-
-
-
-
 	
 	Enemy1Intersection:
 	; X axis intersection - case 1
@@ -292,6 +283,9 @@ proc CheckIntersection
 	ret ; exit because there was an intersection
 
 
+
+
+
 	Enemy2Intersection:
 	; X axis intersection - case 1
 	mov ax, [enemy_2_x]
@@ -323,6 +317,8 @@ proc CheckIntersection
 	dec [player_lives]
 
 	ret ; exit because there was an intersection
+
+
 
 
 
@@ -365,6 +361,8 @@ proc CheckIntersection
 endp CheckIntersection
 
 
+
+
 proc userInterfaceDraw
 	call UpdateLivesText
 	; Draws the lives status
@@ -379,7 +377,7 @@ proc userInterfaceDraw
 	int 21h
 
 	call UpdateCoinsText
-	; Draws the lives status
+	; Draws the coins status
 	mov ah, 02h ; cursor position
 	mov bh, 00h ; page number
 	mov dh, 04h ; row
@@ -390,6 +388,19 @@ proc userInterfaceDraw
 	lea dx, [TEXT_PLAYER_COINS]
 	int 21h
 
+
+
+	
+	; Draws the coins header
+	mov ah, 02h ; cursor position
+	mov bh, 00h ; page number
+	mov dh, 04h ; row
+	mov dl, 7h ; column
+	int 10h 
+
+	mov ah, 09h ; write string to standart output
+	lea dx, [TEXT_COINS_HEADER]
+	int 21h
 	ret
 endp userInterfaceDraw
 
@@ -445,11 +456,14 @@ proc RandomCoinY
 	ret 
 endp RandomCoinY
 
+
+
+
 proc StartSendEnemies
 
 call RandomCoin ; dx contains the random number
 
-cmp dx, 90 ; check the random number to see if it needs to start moving enemy 3
+cmp dx, 90 ; check the random number to see if it needs to start moving the coin
 je EnableMoveCoin
 
 
@@ -477,9 +491,9 @@ je EnableMove3
 ret
 
 EnableMoveCoin:
-call RandomCoinY
+call RandomCoinY ; dx contains the random number
 mov [coin_y], dx
-mov [coin_move], 1 ; turn on the enemie's move status
+mov [coin_move], 1 ; turn on the coin's move status
 mov [coin_x], 139h
 ret
 
@@ -573,7 +587,7 @@ ret
 
 ResetCoinX:
 mov [coin_x], 140h
-mov [coin_move], 0 ; reset the enemie's move status
+mov [coin_move], 0 ; reset the coin's move status
 jmp CheckResetEnemy1
 
 ResetEnemy1X:
@@ -694,38 +708,10 @@ proc CheckGameOver
 
 	; Game active status - stops the game
 	mov [game_active], 00h
+	ret
 endp CheckGameOver
 
 
-proc DrawCharacter ;Drawing our character
-	; ax - character Y pos
-	; bx - character_height
-	; cx - character X pos
-
-
-	mov dx, ax
-	
-	DRAW_CHARACTER_VERTICAL:
-		; printring a pixel
-		push ax
-		push bx
-		mov ah, 0Ch ;Drawing a pixel
-		mov al, 0Fh ; making the pixel white
-		mov bh, 00h ; page number
-		int 10h ;execute the configurations
-		pop bx
-		pop ax
-
-
-		inc dx ; for drawing another pixel under it
-
-		push dx
-		sub dx, ax
-		cmp dx, bx ; check if the character's height is the wanted one
-		pop dx
-		jb DRAW_CHARACTER_VERTICAL ; if not, continue to draw
-	ret
-endp DrawCharacter
 
 
 proc ExitProgram
@@ -893,10 +879,10 @@ ret
 	
 
 	Draw2:
-	mov ax, [enemy_2_y] ; y pos of enemy 1
-	mov [current_y], ax ; y pos of enemy 1
-	mov ax, [enemy_2_x] ; x pos of enemy 1
-	mov [current_x], ax ; x pos of enemy 1
+	mov ax, [enemy_2_y] ; y pos of enemy 2
+	mov [current_y], ax ; y pos of enemy 2
+	mov ax, [enemy_2_x] ; x pos of enemy 2
+	mov [current_x], ax ; x pos of enemy 2
 
 	call OpenFileEnemy
   call ReadHeader
@@ -909,10 +895,10 @@ ret
 
 
 	Draw3:
-	mov ax, [enemy_3_y] ; y pos of enemy 1
-	mov [current_y], ax ; y pos of enemy 1
-	mov ax, [enemy_3_x] ; x pos of enemy 1
-	mov [current_x], ax ; x pos of enemy 1
+	mov ax, [enemy_3_y] ; y pos of enemy 3
+	mov [current_y], ax ; y pos of enemy 3
+	mov ax, [enemy_3_x] ; x pos of enemy 3
+	mov [current_x], ax ; x pos of enemy 3
 
 	call OpenFileEnemy
   call ReadHeader
@@ -929,10 +915,10 @@ ret
 	mov [current_width], 16
 
   ;Draw coin
-	mov ax, [coin_y] ; y pos of enemy 1
-	mov [current_y], ax ; y pos of enemy 1
-	mov ax, [coin_x] ; x pos of enemy 1
-	mov [current_x], ax ; x pos of enemy 1
+	mov ax, [coin_y] ; y pos of the coin
+	mov [current_y], ax ; y pos of the coin
+	mov ax, [coin_x] ; x pos of the coin
+	mov [current_x], ax ; x pos of the coin
 
 
   call OpenFileCoin
@@ -980,7 +966,7 @@ start:
 	int 21h ; dl= 1/100 seconds
 
 	cmp dl, [time_last]
-	je WAIT_FOR_TIME_CHANGE ; if the time hasn't change then we want to check again
+	je WAIT_FOR_TIME_CHANGE ; if the time hasn't change we want to check again
 
 
 
@@ -998,11 +984,11 @@ start:
 	call userInterfaceDraw
 
 
-
-	mov ax, [character_y] ; y pos of enemy 1
-	mov [current_y], ax ; y pos of enemy 1
-	mov ax, [character_x] ; x pos of enemy 1
-	mov [current_x], ax ; x pos of enemy 1
+	; Drawing the player
+	mov ax, [character_y] ; y pos of the player
+	mov [current_y], ax ; y pos of the player
+	mov ax, [character_x] ; x pos of the player
+	mov [current_x], ax ; x pos of the player
 
 	mov [current_height], 24
 	mov [current_width], 24
@@ -1024,13 +1010,6 @@ start:
 	mov [time_last], dl ; updating the time
 	jmp WAIT_FOR_TIME_CHANGE
 
-	
-	
-
-
-
-
-
 
 	
 exit:
@@ -1038,3 +1017,5 @@ exit:
 	mov ax, 4c00h
 	int 21h
 END start
+
+
