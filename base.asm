@@ -15,8 +15,8 @@ game_active DB 1h
 ; Exit the game (Yes(1)\No(0))
 exit_game DB 0h
 
-character_x DW 0Ah ; X postion of the charcter
-character_y DW 0Ah ; Y postion of the charcter
+character_x DW 0Ah ; X postion of the character
+character_y DW 0Ah ; Y postion of the character
 character_height DW 0Eh
 enemy_height DW 01Ch
 time_last DB 0 ; used to check if the time has changed
