@@ -480,23 +480,24 @@ EnableMoveCoin:
 call RandomCoinY
 mov [coin_y], dx
 mov [coin_move], 1 ; turn on the enemie's move status
+mov [coin_x], 139h
 ret
 
 
 EnableMove3:
 mov [enemy_3_move], 1 ; turn on the enemie's move status
-;mov [enemy_3_x], 60h
+mov [enemy_3_x], 139h
 ret
 
 EnableMove2:
 mov [enemy_2_move], 1 ; turn on the enemie's move status
-;mov [enemy_2_x], 60h
+mov [enemy_2_x], 139h
 ret
 
 
 EnableMove1:
 mov [enemy_1_move], 1 ; turn on the enemie's move status
-;mov [enemy_1_x], 60h
+mov [enemy_1_x], 139h
 
 ret
 endp StartSendEnemies
