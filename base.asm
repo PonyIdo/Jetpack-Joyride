@@ -20,9 +20,9 @@ character_y DW 0Ah ; Y postion of the charcter
 character_height DW 0Eh
 enemy_height DW 01Ch
 time_last DB 0 ; used to check if the time has changed
-velocity DW 01h ; speed of the character
+velocity DW 04h ; speed of the character
 
-enemies_velocity DW 4h ; speed of the enemies
+enemies_velocity DW 8h ; speed of the enemies
 
 ; enemies loc
 
@@ -39,31 +39,96 @@ enemy_3_x DW 140h ; X postion of the enemy 3
 enemy_3_y DW 96h ; Y postion of the enemy 3 - 300
 
 
+
+; coin property
+coin_x DW 140h ; X postion of the enemy 3
+coin_y DW 50h ; Y postion of the enemy 3 - 300
+
+current_height DW 40
+current_width DW 12
+
+
+
 ; enemies move status
 enemy_1_move DB 0
 enemy_2_move DB 0
 enemy_3_move DB 0
+coin_move DB 0
 
 
 
-player_lives DB 1 ;Player lives - always starts with 3
+player_lives DB 3 ;Player lives - always starts with 3
+player_coins DB 0
 
 ; texts to print on screen
 
 TEXT_PLAYER_LIVES DB '0', '$'
+TEXT_PLAYER_COINS DB '0', '$'
 TEXT_GAME_END_MENU DB 'GAME OVER', '$'
 TEXT_PLAY_AGAIN DB 'Press enter to play again', '$'
 
+filename_player db 'pic.bmp',0
+filename_enemy db 'pics.bmp',0
+filename_coin db 'coin.bmp',0
 
 
-; Image and graphics
-picFilename db 'pic.bmp', 0 ;ASCIZ (Null-terminated string)
-tmpHeader db 54 dup (0)
-Palette db 1024 dup (0) ; All files should have the same palette, so we apply it once.
-picture db 100 dup (0)
+current_x DW 0Ah ; X postion of the charcter
+current_y DW 0Ah ; Y postion of the charcter
+
+
+filehandle dw ?
+Header db 54 dup (0)
+Palette db 256*4 dup (0)
+ScrLine db 2 dup (0)
 
 
 CODESEG
+
+proc OpenFilePlayer
+	; Open file
+	mov ah, 3Dh
+	xor al, al
+	mov dx, offset filename_player
+	int 21h
+	jc openerror
+	mov [filehandle], ax
+
+	ret
+	openerror :
+	call ExitProgram
+	ret
+endp OpenFilePlayer
+
+
+proc OpenFileEnemy
+	; Open file
+	mov ah, 3Dh
+	xor al, al
+	mov dx, offset filename_enemy
+	int 21h
+	jc openerror2
+	mov [filehandle], ax
+
+	ret
+	openerror2 :
+	call ExitProgram
+	ret
+endp OpenFileEnemy
+
+proc OpenFileCoin
+	; Open file
+	mov ah, 3Dh
+	xor al, al
+	mov dx, offset filename_coin
+	int 21h
+	jc openerror3
+	mov [filehandle], ax
+
+	ret
+	openerror3 :
+	call ExitProgram
+	ret
+endp OpenFileCoin
 
 
 
@@ -138,32 +203,6 @@ endp DRAW_GAME_OVER_MENU
 
 
 
-proc CheckGameOver
-	cmp [player_lives], 0
-	je END_GAME
-
-	ret
-
-	END_GAME:
-	; reset lives
-	mov [player_lives], 3
-	; reset player location
-	mov [character_x], 0Ah
-	mov [character_y], 0Ah
-
-	; reset enemies move status
-	mov [enemy_1_move], 0
-	mov [enemy_2_move], 0
-	mov [enemy_3_move], 0
-	
-	; reset enemies x location
-	mov [enemy_1_x], 140h
-	mov [enemy_2_x], 140h
-	mov [enemy_3_x], 140h
-
-	; Game active status - stops the game
-	mov [game_active], 00h
-endp CheckGameOver
 
 
 
@@ -287,6 +326,19 @@ proc userInterfaceDraw
 	mov ah, 09h ; write string to standart output
 	lea dx, [TEXT_PLAYER_LIVES]
 	int 21h
+
+	call UpdateCoinsText
+	; Draws the lives status
+	mov ah, 02h ; cursor position
+	mov bh, 00h ; page number
+	mov dh, 04h ; row
+	mov dl, 14h ; column
+	int 10h 
+
+	mov ah, 09h ; write string to standart output
+	lea dx, [TEXT_PLAYER_COINS]
+	int 21h
+
 	ret
 endp userInterfaceDraw
 
@@ -299,34 +351,84 @@ proc UpdateLivesText
 	mov [TEXT_PLAYER_LIVES], al
 endp UpdateLivesText
 
+
+proc UpdateCoinsText
+	xor ax, ax
+	mov al, [player_coins]
+
+	add al, 30h ; converting to ascii
+	mov [TEXT_PLAYER_COINS], al
+endp UpdateCoinsText
+
+
+
 proc Random
 	mov ah, 00h ; interrupts to get system time        
 	int 1AH ; CX:DX now hold number of clock ticks since midnight      
 	mov ax, dx
 	xor dx, dx
-	mov cx, 400
-	div cx ; here dx contains the remainder of the division - from 0 to 10000
+	mov cx, 60
+	div cx ; here dx contains the remainder of the division
 	ret 
 endp Random
 
 
+proc RandomCoin
+	mov ah, 00h ; interrupts to get system time        
+	int 1AH ; CX:DX now hold number of clock ticks since midnight      
+	mov ax, dx
+	xor dx, dx
+	mov cx, 91
+	div cx ; here dx contains the remainder of the division
+	ret 
+endp RandomCoin
+
+
+proc RandomCoinY
+	mov ah, 00h ; interrupts to get system time        
+	int 1AH ; CX:DX now hold number of clock ticks since midnight      
+	mov ax, dx
+	xor dx, dx
+	mov cx, 120
+	div cx ; here dx contains the remainder of the division
+	ret 
+endp RandomCoinY
+
 proc StartSendEnemies
+
+call RandomCoin ; dx contains the random number
+
+cmp dx, 90 ; check the random number to see if it needs to start moving enemy 3
+je EnableMoveCoin
+
+
 
 call Random ; dx contains the random number
 
 
-cmp dx, 100 ; check the random number to see if it needs to start moving enemy 1
+cmp dx, 20 ; check the random number to see if it needs to start moving enemy 1
 je EnableMove1
 
 
-cmp dx, 200 ; check the random number to see if it needs to start moving enemy 2
+cmp dx, 40 ; check the random number to see if it needs to start moving enemy 2
 je EnableMove2
 
 
 
-cmp dx, 300 ; check the random number to see if it needs to start moving enemy 3
+cmp dx, 59 ; check the random number to see if it needs to start moving enemy 3
 je EnableMove3
 
+
+
+
+
+
+ret
+
+EnableMoveCoin:
+call RandomCoinY
+mov [coin_y], dx
+mov [coin_move], 1 ; turn on the enemie's move status
 ret
 
 
@@ -354,6 +456,11 @@ endp StartSendEnemies
 proc MoveEnemies
 mov ax, [enemies_velocity]
 
+
+CheckMoveStatusCoin:
+cmp [coin_move], 1
+je MoveCoin
+
 CheckMoveStatusEnemy1:
 cmp [enemy_1_move], 1
 je MoveEnemy1
@@ -367,6 +474,10 @@ cmp [enemy_3_move], 1
 je MoveEnemy3
 
 ret
+
+MoveCoin:
+sub [coin_x], ax
+jmp CheckMoveStatusEnemy1
 
 MoveEnemy1:
 sub [enemy_1_x], ax
@@ -387,6 +498,11 @@ endp MoveEnemies
 
 proc ResetEnemies
 
+CheckResetCoin:
+cmp [coin_x], 8 ; checking if it's about to hit the end of the map
+jl ResetCoinX
+
+
 CheckResetEnemy1:
 cmp [enemy_1_x], 8 ; checking if it's about to hit the end of the map
 jl ResetEnemy1X
@@ -402,6 +518,11 @@ cmp [enemy_3_x], 8 ; checking if it's about to hit the end of the map
 jl ResetEnemy3X
 
 ret
+
+ResetCoinX:
+mov [coin_x], 140h
+mov [coin_move], 0 ; reset the enemie's move status
+jmp CheckResetEnemy1
 
 ResetEnemy1X:
 mov [enemy_1_x], 140h
@@ -430,14 +551,14 @@ endp ResetEnemies
 
 
 proc ClearScreen
-	mov ax, 013h ; set vga mode
-	int 10h
+	
 
-	; background configuration
-	mov ah, 0Bh
-	mov bh, 00h
-	mov bl, 00h ; setting the background color to black
-	int 10h ;execute the configurations
+
+	mov ax,0600h
+	;mov bh,3h
+	mov cx,0h
+	mov dx,184fh
+	int 10h
 	ret
 endp ClearScreen
 
@@ -456,12 +577,12 @@ proc MovementDirectionUpdate
 
 	; if the key is not not space
 	DirectionDown:
-	mov [velocity], 01h
+	mov [velocity], 04h
 	ret
 
 	; if the key is space 
 	DirectionUp:
-	mov [velocity], -01h
+	mov [velocity], -04h
 	ret
 
 endp MovementDirectionUpdate
@@ -469,29 +590,59 @@ endp MovementDirectionUpdate
 proc CharacterMove
 	mov ax, [velocity]
 	mov bx, [WINDOW_HEIGHT]
+	sub bx, ax ; because we do not want to touch the ground, we want to touch nearby
 	mov cx, [character_height]
 	sub bx,cx ; the height of the character is cx
 	
 	add [character_y], ax ; updating the character's initial y pos after moving
 
-	cmp [character_y], 0 ; if we the character intersects with the top then we reset it's loc
-	je RESET_LOC_TOP
+	cmp [character_y], ax ; if we the character intersects with the top then we reset it's loc
+	jle RESET_LOC_TOP
 
 	cmp [character_y], bx ; if we the character intersects with the bottom then we reset it's loc
-	je RESET_LOC_BOTTOM
+	jge RESET_LOC_BOTTOM
 
 	
 	ret
 
 	RESET_LOC_TOP:
-	mov [character_y], 1
+	mov [character_y], ax
 	ret
 
 	RESET_LOC_BOTTOM:
-	dec [character_y]
+	sub [character_y], ax
 	ret
 endp CharacterMove
 
+
+
+
+proc CheckGameOver
+	cmp [player_lives], 0
+	je END_GAME
+
+	ret
+
+	END_GAME:
+	; reset lives
+	mov [player_lives], 3
+	; reset player location
+	mov [character_x], 0Ah
+	mov [character_y], 0Ah
+
+	; reset enemies move status
+	mov [enemy_1_move], 0
+	mov [enemy_2_move], 0
+	mov [enemy_3_move], 0
+	
+	; reset enemies x location
+	mov [enemy_1_x], 140h
+	mov [enemy_2_x], 140h
+	mov [enemy_3_x], 140h
+
+	; Game active status - stops the game
+	mov [game_active], 00h
+endp CheckGameOver
 
 
 proc DrawCharacter ;Drawing our character
@@ -539,21 +690,95 @@ endp ExitProgram
 
 
 
-; Open a file. Parameters are:
-; 1. reference to filename on dx (ASCIZ format)
-; Returns file handle to ax or 0 on error
-proc OpenFile
-  mov ah, 3Dh
-  xor al, al
-  int 21h
-  jc openerror
-  jmp openFinish
-openerror:
-  mov ax, 0
-  call ExitProgram
-openFinish:
-  ret
-endp OpenFile
+
+
+proc ReadHeader
+	; Read BMP file header, 54 bytes
+	mov ah,3fh
+	mov bx, [filehandle]
+	mov cx,54
+	mov dx,offset Header
+	int 21h
+	ret
+endp ReadHeader
+
+proc ReadPalette
+	; Read BMP file color palette, 256 colors * 4 bytes (400h)
+	mov ah,3fh
+	mov cx,400h
+	mov dx,offset Palette
+	int 21h
+	ret
+endp ReadPalette
+
+proc CopyPal
+	; Copy the colors palette to the video memory
+	; The number of the first color should be sent to port 3C8h
+	; The palette is sent to port 3C9h
+	mov si,offset Palette
+	mov cx,256
+	mov dx,3C8h
+	mov al,0
+	; Copy starting color to port 3C8h
+	out dx,al
+	; Copy palette itself to port 3C9h
+	inc dx
+	PalLoop:
+	; Note: Colors in a BMP file are saved as BGR values rather than RGB .
+	mov al,[si+2] ; Get red value .
+	shr al,2 ; Max. is 255, but video palette maximal
+	; value is 63. Therefore dividing by 4.
+	out dx,al ; Send it .
+	mov al,[si+1] ; Get green value .
+	shr al,2
+	out dx,al ; Send it .
+	mov al,[si] ; Get blue value .
+	shr al,2
+	out dx,al ; Send it .
+	add si,4 ; Point to next color .
+	; (There is a null chr. after every color.)
+
+	loop PalLoop
+	ret
+endp CopyPal
+
+
+proc CopyBitmap
+	; BMP graphics are saved upside-down .
+	; Read the graphic line by line (200 lines in VGA format),
+	; displaying the lines from bottom to top.
+	mov ax, 0A000h
+	mov es, ax
+	mov cx,[current_height] ; controls y axis
+	add cx, [current_y]
+	PrintBMPLoop :
+	push cx
+	; di = cx*320, point to the correct screen line
+	mov di,cx
+	shl cx,6
+	shl di,8
+	add di,cx
+	add di, [current_x] ; di controls x axis
+	; Read one line
+	mov ah,3fh
+	mov cx,[current_width]
+	mov dx,offset ScrLine
+	int 21h
+	; Copy one line into video memory
+	cld ; Clear direction flag, for movsb
+	mov cx,[current_width]
+	mov si,offset ScrLine
+
+	rep movsb ; Copy line to the screen
+	pop cx
+	mov ax, [current_y]
+	inc ax
+	cmp cx, ax
+	je Quit
+	loop PrintBMPLoop
+	Quit:
+	ret
+endp CopyBitmap
 
 
 
@@ -561,276 +786,20 @@ endp OpenFile
 
 
 
-
-
-
-; Read BMP file color palette, 256 colors * 4 bytes (400h)
-; Params:
-; 1. BX = file handle
-; 2. DX = palette buffer
-proc ReadBMPPalette
-  push ax
-  push cx
-  push dx
-  push bx
-  push sp
-  push bp
-  push si
-  push di
-
-
-  mov ah, 3fh
-  mov cx, 400h
-  int 21h
-
-
-  pop di
-  pop si
-  pop bp
-  pop sp
-  pop bx
-  pop dx
-  pop cx
-  pop ax
-  ret
-endp ReadBMPPalette
-
-
-
-; Copy the colors palette to the video memory registers
-; The number of the first color should be sent to port 3C8h
-; The palette is sent to port 3C9h
-; si = palette buffer
-proc CopyBMPPalette
-  push ax
-  push cx
-  push dx
-  push bx
-  push sp
-  push bp
-  push si
-  push di
-
-
-  mov cx,256
-  mov dx,3C8h
-  mov al,0
-  ; Copy starting color to port 3C8h
-  out dx,al
-  ; Copy palette itself to port 3C9h
-  inc dx
-PalLoop:
-  ; Note: Colors in a BMP file are saved as BGR values rather than RGB.
-  mov al,[si+2] ; Get red value.
-  shr al,2 ; Max. is 255, but video palette maximal
-   ; value is 63. Therefore dividing by 4.
-  out dx,al ; Send it.
-  mov al,[si+1] ; Get green value.
-  shr al,2
-  out dx,al ; Send it.
-  mov al,[si] ; Get blue value.
-  shr al,2
-  out dx,al ; Send it.
-  add si,4 ; Point to next color.
-   ; (There is a null chr. after every color.)
-  loop PalLoop
-
-
-  pop di
-  pop si
-  pop bp
-  pop sp
-  pop bx
-  pop dx
-  pop cx
-  pop ax
-  ret
-endp CopyBMPPalette
-
-
-; Copy bitmap to memory
-; Params:
-; 1. bx = file handle
-; 2. dx = buffer
-; 3. cx = height
-; 4. ax = width
-; Note: BMP graphics are saved upside-down.
-proc CopyBMPToMemory
-  push ax
-  push cx
-  push dx
-  push bx
-  push sp
-  push bp
-  push si
-  push di
-  push ax ; backup width
-  push dx ; backup buffer
-  mul cx ; Image size cannot be more than 16bit (max size is 320x200 = 64,000; 16bit register can hold up to 2^16-1 = 65535), so we ignore dx
-  pop dx ; dx = buffer
-  add dx, ax ; dx = end of buffer
-  pop di ; di = width
-  sub dx, di ; start of last line
-  mov bp, cx ; bp = height
-  mov cx, di ; cx = width
-ReadLine:
-  mov ax, 03F00h
-  int 21h; Read from file. BX = file handle, CX = number of bytes to read, DX = buffer
-  sub dx, cx
-  dec bp
-  cmp bp, 0
-  jne ReadLine
-  pop di
-  pop si
-  pop bp
-  pop sp
-  pop bx
-  pop dx
-  pop cx
-  pop ax
-  ret
-endp CopyBMPToMemory
-
-
-; Close file. Bx = file handle
 proc CloseFile
-  push ax
-  push cx
-  push dx
-  push bx
-  push sp
-  push bp
-  push si
-  push di
-  mov ah,3Eh
-  int 21h
-  pop di
-  pop si
-  pop bp
-  pop sp
-  pop bx
-  pop dx
-  pop cx
-  pop ax
+  mov  ah, 3Eh
+  mov  bx, [filehandle]
+  int  21h
   ret
 endp CloseFile
 
 
+SHOW_GAME_OVER:
+		call DRAW_GAME_OVER_MENU
+		jmp WAIT_FOR_TIME_CHANGE
 
-
-; Draw from memory. Parameters are:
-; 1. buffer
-; 2. width
-; 3. height
-; 4. startX
-; 5. startY
-proc DrawFromMemory
-  push bp
-  mov bp, sp
-  push ax
-  push cx
-  push dx
-  push bx
-  push sp
-  push bp
-  push si
-  push di
-  mov ax, 0A000h
-  mov es, ax
-  mov ax, [bp + 4] ; start y
-  mov bx, 320
-  mul bx ;ax = start of the line
-  cld ; for movsb
-  mov di, ax ; di = start of the length
-  add di, [bp + 6] ; add startX
-  mov si, [bp + 12] ; si = buffer
-  mov cx, [bp + 8] ;height
-CPLoop:
-  push cx
-  mov cx, [bp + 10]; width
-  rep movsb
-  pop cx
-  sub di, [bp + 10] ; sub the width
-  add di, 320 ; go to next row
-  loop CPLoop
-  pop di
-  pop si
-  pop bp
-  pop sp
-  pop bx
-  pop dx
-  pop cx
-  pop ax
-  pop bp
-
-
-  ret 10
-endp DrawFromMemory
-
-
-
-
-
-
-; Read file. Paramters:
-; 1. bx = file handle
-; 2. cx = number of bytes
-; 3. dx = buffer reference
-proc ReadFile
-  push ax
-  push cx
-  push dx
-  push bx
-  push sp
-  push bp
-  push si
-  push di
-
-
-  mov ah,3Fh
-  int 21h
-  
-  pop di
-  pop si
-  pop bp
-  pop sp
-  pop bx
-  pop dx
-  pop cx
-  pop ax
-  ret
-endp readFile
-
-
-; Read BMP file header, 54 bytes, into [dx]
-; Params:
-; 1. BX = file handle
-; 2. DX = bmp header buffer
-proc ReadBMPHeader
-  push ax
-  push cx
-  push dx
-  push bx
-  push sp
-  push bp
-  push si
-  push di
-
-  mov ah,3fh
-  mov cx,54
-  int 21h
-  
-  pop di
-  pop si
-  pop bp
-  pop sp
-  pop bx
-  pop dx
-  pop cx
-  pop ax
-  ret
-endp ReadBMPHeader
-
+	EXIT_GAME_PROCESS:
+	call ExitProgram
 
 
 
@@ -838,38 +807,9 @@ start:
 	mov ax, @data
 	mov ds, ax
 
+	mov ax, 013h ; set vga mode
+	int 10h
 	call ClearScreen
-
-	; BMP Character graphics
-	mov dx, offset picFilename
-	call OpenFile
-
-	mov bx, ax ; AX is the file handle from OpenFile
-	mov dx, offset tmpHeader ; 54 bytes on memory
-	call ReadBMPHeader
-
-	mov dx, offset Palette
-	call ReadBMPPalette
-
-	mov si, dx
-	call CopyBMPPalette
-
-
-	mov dx, offset picture
-	mov cx, 10 ; height
-	mov ax, 10 ; width
-	call CopyBMPToMemory
-
-
-	call CloseFile
-
-
-
-
-
-
-
-
 
 	WAIT_FOR_TIME_CHANGE:
 
@@ -879,6 +819,9 @@ start:
 	cmp [game_active], 00h ; checking if the game ended
 	je SHOW_GAME_OVER
 
+
+
+
 	; system time
 	mov ah, 2Ch
 	int 21h ; dl= 1/100 seconds
@@ -886,8 +829,11 @@ start:
 	cmp dl, [time_last]
 	je WAIT_FOR_TIME_CHANGE ; if the time hasn't change then we want to check again
 
+
+
+	
 	; the time has changed and we can change the new frame
-	mov [time_last], dl ; updating the time
+	push dx
 	
 	call ClearScreen
 	call MovementDirectionUpdate
@@ -898,50 +844,100 @@ start:
 	call CheckIntersection
 	call userInterfaceDraw
 
-	; main character drawing
-
-	push offset picture
-	push 10 ; width
-	push 10 ; height
-	push [character_x] ; x
-	push [character_y] ; y
-	call DrawFromMemory
 
 
-	; enemies are taller :)
-	mov bx, 01Ch
+	mov ax, [character_y] ; y pos of enemy 1
+	mov [current_y], ax ; y pos of enemy 1
+	mov ax, [character_x] ; x pos of enemy 1
+	mov [current_x], ax ; x pos of enemy 1
 
-	; Draw enemy 1
+	mov [current_height], 24
+	mov [current_width], 24
+
+	call OpenFilePlayer
+  call ReadHeader
+  call ReadPalette
+  call CopyPal
+  call CopyBitmap
+  call CloseFile
+
+
+	; enemies are taller
+	mov [current_height], 40
+	mov [current_width], 12
+
+
+	;Draw enemy 1
 	mov ax, [enemy_1_y] ; y pos of enemy 1
-	mov cx, [enemy_1_x] ; x pos of enemy 1
-	call DrawCharacter
+	mov [current_y], ax ; y pos of enemy 1
+	mov ax, [enemy_1_x] ; x pos of enemy 1
+	mov [current_x], ax ; x pos of enemy 1
 
-	; Draw enemy 2
-	mov ax, [enemy_2_y] ; y pos of enemy 2
-	mov cx, [enemy_2_x] ; x pos of enemy 2
-	call DrawCharacter
+	call OpenFileEnemy
+  call ReadHeader
+  call ReadPalette
+  call CopyPal
+  call CopyBitmap
+  call CloseFile
 
-	; Draw enemy 3
-	mov ax, [enemy_3_y] ; y pos of enemy 3
-	mov cx, [enemy_3_x] ; x pos of enemy 3
-	call DrawCharacter
+	;Draw enemy 2
+	mov ax, [enemy_2_y] ; y pos of enemy 1
+	mov [current_y], ax ; y pos of enemy 1
+	mov ax, [enemy_2_x] ; x pos of enemy 1
+	mov [current_x], ax ; x pos of enemy 1
 
+	call OpenFileEnemy
+  call ReadHeader
+  call ReadPalette
+  call CopyPal
+  call CopyBitmap
+  call CloseFile
+
+	;Draw enemy 3
+	mov ax, [enemy_3_y] ; y pos of enemy 1
+	mov [current_y], ax ; y pos of enemy 1
+	mov ax, [enemy_3_x] ; x pos of enemy 1
+	mov [current_x], ax ; x pos of enemy 1
+
+	call OpenFileEnemy
+  call ReadHeader
+  call ReadPalette
+  call CopyPal
+  call CopyBitmap
+  call CloseFile
+
+
+	mov [current_height], 16
+	mov [current_width], 16
+
+  ;Draw coin
+	mov ax, [coin_y] ; y pos of enemy 1
+	mov [current_y], ax ; y pos of enemy 1
+	mov ax, [coin_x] ; x pos of enemy 1
+	mov [current_x], ax ; x pos of enemy 1
+
+
+  call OpenFileCoin
+  call ReadHeader
+  call ReadPalette
+  call CopyPal
+  call CopyBitmap
+  call CloseFile
 
 	call CheckGameOver
 
+	pop dx
 
 
-	
+	mov [time_last], dl ; updating the time
 	jmp WAIT_FOR_TIME_CHANGE
 
-	EXIT_GAME_PROCESS:
-	call ExitProgram
 	
-	SHOW_GAME_OVER:
-		call DRAW_GAME_OVER_MENU
-		jmp WAIT_FOR_TIME_CHANGE
+	
 
-	
+
+
+
 
 
 	
