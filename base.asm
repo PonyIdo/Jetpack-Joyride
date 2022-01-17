@@ -207,6 +207,57 @@ endp DRAW_GAME_OVER_MENU
 
 
 proc CheckIntersection
+
+	CoinIntersection:
+	; X axis intersection - case 1
+	mov ax, [coin_x]
+	sub ax, [enemies_velocity]
+	cmp ax, [character_x]
+
+	jge Enemy1Intersection ; no intersection
+
+	; X axis intersection - case 2
+	mov ax, [coin_x]
+	cmp ax, [character_x]
+
+	jle Enemy1Intersection ; no intersection
+
+
+	; Y axis intersection - case 1
+	mov ax, [character_y]
+	add ax, [character_height]
+	cmp ax, [coin_y]
+	jle Enemy2Intersection ; no intersection
+
+	; Y axis intersection - case 2
+	mov ax, [coin_y]
+	add ax, [enemy_height]
+	cmp [character_y], ax 
+	jge Enemy1Intersection ; no intersection
+
+	; Here we have an intersection
+	inc [player_coins]
+
+	; hide coin
+	mov [coin_x], 140h
+	mov [coin_move], 0 ; reset the enemie's move status
+
+	ret ; exit because there was an intersection
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 	
 	Enemy1Intersection:
 	; X axis intersection - case 1
@@ -794,6 +845,107 @@ proc CloseFile
 endp CloseFile
 
 
+proc DrawEnemies
+
+	; enemies are taller
+	mov [current_height], 40
+	mov [current_width], 12
+
+	CheckDraw1:
+	cmp [enemy_1_move], 1
+	je Draw1
+
+	CheckDraw2:
+	cmp [enemy_2_move], 1
+	je Draw2
+
+	CheckDraw3:
+	cmp [enemy_3_move], 1
+	je Draw3
+
+	CheckCoin:
+	cmp [coin_move], 1
+	je DrawCoin
+
+ret
+
+
+
+
+
+
+
+	Draw1:
+	mov ax, [enemy_1_y] ; y pos of enemy 1
+	mov [current_y], ax ; y pos of enemy 1
+	mov ax, [enemy_1_x] ; x pos of enemy 1
+	mov [current_x], ax ; x pos of enemy 1
+
+	call OpenFileEnemy
+  call ReadHeader
+  call ReadPalette
+  call CopyPal
+  call CopyBitmap
+  call CloseFile
+  jmp CheckDraw2
+
+	
+
+	Draw2:
+	mov ax, [enemy_2_y] ; y pos of enemy 1
+	mov [current_y], ax ; y pos of enemy 1
+	mov ax, [enemy_2_x] ; x pos of enemy 1
+	mov [current_x], ax ; x pos of enemy 1
+
+	call OpenFileEnemy
+  call ReadHeader
+  call ReadPalette
+  call CopyPal
+  call CopyBitmap
+  call CloseFile
+  jmp CheckDraw3
+
+
+
+	Draw3:
+	mov ax, [enemy_3_y] ; y pos of enemy 1
+	mov [current_y], ax ; y pos of enemy 1
+	mov ax, [enemy_3_x] ; x pos of enemy 1
+	mov [current_x], ax ; x pos of enemy 1
+
+	call OpenFileEnemy
+  call ReadHeader
+  call ReadPalette
+  call CopyPal
+  call CopyBitmap
+  call CloseFile
+  jmp CheckCoin
+
+
+
+  DrawCoin:
+	mov [current_height], 16
+	mov [current_width], 16
+
+  ;Draw coin
+	mov ax, [coin_y] ; y pos of enemy 1
+	mov [current_y], ax ; y pos of enemy 1
+	mov ax, [coin_x] ; x pos of enemy 1
+	mov [current_x], ax ; x pos of enemy 1
+
+
+  call OpenFileCoin
+  call ReadHeader
+  call ReadPalette
+  call CopyPal
+  call CopyBitmap
+  call CloseFile
+  ret
+
+endp DrawEnemies
+
+
+
 SHOW_GAME_OVER:
 		call DRAW_GAME_OVER_MENU
 		jmp WAIT_FOR_TIME_CHANGE
@@ -862,68 +1014,7 @@ start:
   call CloseFile
 
 
-	; enemies are taller
-	mov [current_height], 40
-	mov [current_width], 12
-
-
-	;Draw enemy 1
-	mov ax, [enemy_1_y] ; y pos of enemy 1
-	mov [current_y], ax ; y pos of enemy 1
-	mov ax, [enemy_1_x] ; x pos of enemy 1
-	mov [current_x], ax ; x pos of enemy 1
-
-	call OpenFileEnemy
-  call ReadHeader
-  call ReadPalette
-  call CopyPal
-  call CopyBitmap
-  call CloseFile
-
-	;Draw enemy 2
-	mov ax, [enemy_2_y] ; y pos of enemy 1
-	mov [current_y], ax ; y pos of enemy 1
-	mov ax, [enemy_2_x] ; x pos of enemy 1
-	mov [current_x], ax ; x pos of enemy 1
-
-	call OpenFileEnemy
-  call ReadHeader
-  call ReadPalette
-  call CopyPal
-  call CopyBitmap
-  call CloseFile
-
-	;Draw enemy 3
-	mov ax, [enemy_3_y] ; y pos of enemy 1
-	mov [current_y], ax ; y pos of enemy 1
-	mov ax, [enemy_3_x] ; x pos of enemy 1
-	mov [current_x], ax ; x pos of enemy 1
-
-	call OpenFileEnemy
-  call ReadHeader
-  call ReadPalette
-  call CopyPal
-  call CopyBitmap
-  call CloseFile
-
-
-	mov [current_height], 16
-	mov [current_width], 16
-
-  ;Draw coin
-	mov ax, [coin_y] ; y pos of enemy 1
-	mov [current_y], ax ; y pos of enemy 1
-	mov ax, [coin_x] ; x pos of enemy 1
-	mov [current_x], ax ; x pos of enemy 1
-
-
-  call OpenFileCoin
-  call ReadHeader
-  call ReadPalette
-  call CopyPal
-  call CopyBitmap
-  call CloseFile
-
+	call DrawEnemies
 	call CheckGameOver
 
 	pop dx
