@@ -51,6 +51,12 @@ current_width DW 12
 
 
 
+
+scrollX DW 0
+
+
+
+
 ; enemies move status
 enemy_1_move DB 0
 enemy_2_move DB 0
@@ -76,6 +82,8 @@ filename_heart1 db 'heart1.bmp',0
 filename_heart2 db 'heart2.bmp',0
 filename_heart3 db 'heart3.bmp',0
 
+filename_bg1 db 'bg1.bmp',0
+filename_bg2 db 'bg2.bmp',0
 
 current_x DW 0Ah ; X postion of the current object
 current_y DW 0Ah ; Y postion of the current object
@@ -103,6 +111,41 @@ proc OpenFilePlayer
 	call ExitProgram
 	ret
 endp OpenFilePlayer
+
+
+proc OpenFileBg1
+	; Open file
+	mov ah, 3Dh
+	xor al, al
+	mov dx, offset filename_bg1
+	int 21h
+	jc openerror8
+	mov [filehandle], ax
+
+	ret
+	openerror8 :
+	call ExitProgram
+	ret
+endp OpenFileBg1
+
+
+proc OpenFileBg2
+	; Open file
+	mov ah, 3Dh
+	xor al, al
+	mov dx, offset filename_bg2
+	int 21h
+	jc openerror7
+	mov [filehandle], ax
+
+	ret
+	openerror7 :
+	call ExitProgram
+	ret
+endp OpenFileBg2
+
+
+
 
 
 proc OpenFileEnemy
@@ -511,7 +554,7 @@ call prg
 
 
 
-cmp ax, 30 ; check the random number to see if it needs to start moving the coin
+cmp ax, 200 ; check the random number to see if it needs to start moving the coin
 jb CheckCoinMove
 
 
@@ -703,11 +746,8 @@ proc ClearScreen
 	
 
 
-	mov ax,0600h
-	;mov bh,3h
-	mov cx,0h
-	mov dx,184fh
-	int 10h
+	mov ax,0A000h
+mov es,ax
 	ret
 endp ClearScreen
 
@@ -773,6 +813,12 @@ proc CheckGameOver
 	ret
 
 	END_GAME:
+	mov ax,0600h
+	;mov bh,3h
+	mov cx,0h
+	mov dx,184fh
+	int 10h
+	
 	; reset lives
 	mov [player_lives], 3
 	; reset player location
@@ -884,13 +930,38 @@ proc CopyBitmap
 	mov ah,3fh
 	mov cx,[current_width]
 	mov dx,offset ScrLine
+
+	
+
 	int 21h
+	
+
+
+
+
 	; Copy one line into video memory
 	cld ; Clear direction flag, for movsb
 	mov cx,[current_width]
 	mov si,offset ScrLine
+	dec cx
 
-	rep movsb ; Copy line to the screen
+	; Copy line to the screen
+	CopyLine:
+	mov ax, [ds:si]
+	cmp ax, 0
+	je SkipDraw
+	mov [es:di], ax
+	SkipDraw:
+	inc si
+	inc di
+
+
+	loop CopyLine
+
+
+
+
+		
 	pop cx
 	mov ax, [current_y]
 	inc ax
@@ -1079,6 +1150,62 @@ endp DrawEnemies
 
 
 
+proc BackgroundMove
+add [scrollX], 10
+mov ax, [scrollX]
+
+mov cx, 4
+BgLoopDraw:
+push cx
+push ax
+; Drawing the first background
+	mov [current_y], 0 ; y pos of the player
+	mov [current_x], ax ; x pos of the player
+
+	mov [current_height], 200
+	mov [current_width], 80
+
+	call OpenFileBg1
+  call ReadHeader
+  call ReadPalette
+  call CopyPal
+  call CopyBitmap
+  call CloseFile
+  pop ax
+  pop cx
+  add ax, 80
+
+  loop BgLoopDraw
+
+
+
+  cmp [scrollX], 320
+  jge ResetScrollX
+
+  
+
+  ret
+
+  ResetScrollX:
+  mov [scrollX], 0
+  ret
+endp BackgroundMove
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 SHOW_GAME_OVER:
 		call DRAW_GAME_OVER_MENU
 		jmp WAIT_FOR_TIME_CHANGE
@@ -1121,6 +1248,7 @@ start:
 	push dx
 	
 	call ClearScreen
+	call BackgroundMove
 	call MovementDirectionUpdate
 	call CharacterMove
 	call ResetEnemies
