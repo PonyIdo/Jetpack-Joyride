@@ -8,6 +8,7 @@ DATASEG
 WINDOW_WIDTH DW 140h ; width of the window
 WINDOW_HEIGHT DW 0c8h ; height of the window
 
+NextRandom dw 0
 
 ; Game active status (Yes(1)\No(0))
 game_active DB 1h
@@ -24,6 +25,7 @@ velocity DW 04h ; speed of the character
 
 enemies_velocity DW 8h ; speed of the enemies
 
+rand_fast DW 2000
 ; enemies loc
 
 ; enemy 1 property
@@ -62,7 +64,6 @@ player_coins DB 0
 
 ; texts to print on screen
 
-TEXT_PLAYER_LIVES DB '0', '$'
 TEXT_PLAYER_COINS DB '0', '$'
 TEXT_GAME_END_MENU DB 'GAME OVER', '$'
 TEXT_PLAY_AGAIN DB 'Press enter to play again', '$'
@@ -71,6 +72,9 @@ TEXT_COINS_HEADER DB 'MadanimCoins:', '$'
 filename_player db 'pic.bmp',0
 filename_enemy db 'pics.bmp',0
 filename_coin db 'coin.bmp',0
+filename_heart1 db 'heart1.bmp',0
+filename_heart2 db 'heart2.bmp',0
+filename_heart3 db 'heart3.bmp',0
 
 
 current_x DW 0Ah ; X postion of the current object
@@ -131,6 +135,53 @@ proc OpenFileCoin
 	ret
 endp OpenFileCoin
 
+
+proc OpenFileHeart1
+	; Open file
+	mov ah, 3Dh
+	xor al, al
+	mov dx, offset filename_heart1
+	int 21h
+	jc openerror4
+	mov [filehandle], ax
+
+	ret
+	openerror4 :
+	call ExitProgram
+	ret
+endp OpenFileHeart1
+
+
+proc OpenFileHeart2
+	; Open file
+	mov ah, 3Dh
+	xor al, al
+	mov dx, offset filename_heart2
+	int 21h
+	jc openerror5
+	mov [filehandle], ax
+
+	ret
+	openerror5 :
+	call ExitProgram
+	ret
+endp OpenFileHeart2
+
+
+proc OpenFileHeart3
+	; Open file
+	mov ah, 3Dh
+	xor al, al
+	mov dx, offset filename_heart3
+	int 21h
+	jc openerror6
+	mov [filehandle], ax
+
+	ret
+	openerror6 :
+	call ExitProgram
+	ret
+endp OpenFileHeart3
 
 
 proc DRAW_GAME_OVER_MENU
@@ -364,17 +415,6 @@ endp CheckIntersection
 
 
 proc userInterfaceDraw
-	call UpdateLivesText
-	; Draws the lives status
-	mov ah, 02h ; cursor position
-	mov bh, 00h ; page number
-	mov dh, 04h ; row
-	mov dl, 20h ; column
-	int 10h 
-
-	mov ah, 09h ; write string to standart output
-	lea dx, [TEXT_PLAYER_LIVES]
-	int 21h
 
 	call UpdateCoinsText
 	; Draws the coins status
@@ -405,13 +445,6 @@ proc userInterfaceDraw
 endp userInterfaceDraw
 
 
-proc UpdateLivesText
-	xor ax, ax
-	mov al, [player_lives]
-
-	add al, 30h ; converting to ascii
-	mov [TEXT_PLAYER_LIVES], al
-endp UpdateLivesText
 
 
 proc UpdateCoinsText
@@ -424,26 +457,6 @@ endp UpdateCoinsText
 
 
 
-proc Random
-	mov ah, 00h ; interrupts to get system time        
-	int 1AH ; CX:DX now hold number of clock ticks since midnight      
-	mov ax, dx
-	xor dx, dx
-	mov cx, 60
-	div cx ; here dx contains the remainder of the division
-	ret 
-endp Random
-
-
-proc RandomCoin
-	mov ah, 00h ; interrupts to get system time        
-	int 1AH ; CX:DX now hold number of clock ticks since midnight      
-	mov ax, dx
-	xor dx, dx
-	mov cx, 91
-	div cx ; here dx contains the remainder of the division
-	ret 
-endp RandomCoin
 
 
 proc RandomCoinY
@@ -457,38 +470,94 @@ proc RandomCoinY
 endp RandomCoinY
 
 
+;; returns pseudo random number of 2 bytes in ax. The seed is set and updated in NextRandom.
+proc prg
+    push dx
+    xor dx, dx
+
+    mov ax, [NextRandom]
+    mov dx, 25173
+    imul dx
+
+    add  ax, 13849
+    xor  ax, 62832
+    mov  [NextRandom], ax
+
+    pop dx
+    ret
+endp prg
+
+
+
+
+
+
+
 
 
 proc StartSendEnemies
 
-call RandomCoin ; dx contains the random number
+;; get time
+mov ah, 2Ch 
+int 21h
 
-cmp dx, 90 ; check the random number to see if it needs to start moving the coin
-je EnableMoveCoin
-
-
-
-call Random ; dx contains the random number
-
-
-cmp dx, 20 ; check the random number to see if it needs to start moving enemy 1
-je EnableMove1
-
-
-cmp dx, 40 ; check the random number to see if it needs to start moving enemy 2
-je EnableMove2
+;; set seed as secs:mi secs
+mov [NextRandom], dx
+    
+;; get (pseudo) random number
+call prg
 
 
 
-cmp dx, 59 ; check the random number to see if it needs to start moving enemy 3
-je EnableMove3
 
 
+cmp ax, 30 ; check the random number to see if it needs to start moving the coin
+jb CheckCoinMove
 
+
+mov bx, [rand_fast]
+
+cmp ax, bx ; check the random number to see if it needs to start moving enemy 1
+jb CheckEnemy1Move
+
+add bx, [rand_fast]
+cmp ax, bx ; check the random number to see if it needs to start moving enemy 2
+jb CheckEnemy2Move
+
+
+add bx, [rand_fast]
+cmp ax, bx ; check the random number to see if it needs to start moving enemy 3
+jb CheckEnemy3Move
 
 
 
 ret
+
+CheckCoinMove:
+cmp [coin_move], 0
+je EnableMoveCoin
+ret
+
+CheckEnemy1Move:
+cmp [enemy_1_move], 0
+je EnableMove1
+ret
+
+CheckEnemy2Move:
+cmp [enemy_2_move], 0
+je EnableMove2
+ret
+
+CheckEnemy3Move:
+cmp [enemy_3_move], 0
+je EnableMove3
+ret
+
+
+
+
+
+
 
 EnableMoveCoin:
 call RandomCoinY ; dx contains the random number
@@ -515,6 +584,20 @@ mov [enemy_1_x], 139h
 
 ret
 endp StartSendEnemies
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -832,6 +915,69 @@ proc CloseFile
 endp CloseFile
 
 
+
+proc DrawHeartBar
+
+	mov [current_y], 25 ; y pos of enemy 1
+	mov [current_x], 270 ; x pos of enemy 1
+	mov [current_height], 8
+	mov [current_width], 28
+	mov al, [player_lives]
+
+cmp al, 1
+	je DrawHeart1
+
+cmp al, 2
+	je DrawHeart2
+
+
+cmp al,3
+	je DrawHeart3
+
+ret
+
+
+DrawHeart1:
+	call OpenFileHeart1
+  call ReadHeader
+  call ReadPalette
+  call CopyPal
+  call CopyBitmap
+  call CloseFile
+
+  ret
+
+
+DrawHeart2:
+	call OpenFileHeart2
+  call ReadHeader
+  call ReadPalette
+  call CopyPal
+  call CopyBitmap
+  call CloseFile
+
+  ret
+
+
+DrawHeart3:
+	call OpenFileHeart3
+  call ReadHeader
+  call ReadPalette
+  call CopyPal
+  call CopyBitmap
+  call CloseFile
+
+  ret
+
+
+
+
+
+endp DrawHeartBar
+
+
+
+
 proc DrawEnemies
 
 	; enemies are taller
@@ -982,6 +1128,7 @@ start:
 	call MoveEnemies
 	call CheckIntersection
 	call userInterfaceDraw
+	call DrawHeartBar
 
 
 	; Drawing the player
