@@ -83,7 +83,6 @@ filename_heart2 db 'heart2.bmp',0
 filename_heart3 db 'heart3.bmp',0
 
 filename_bg1 db 'bg1.bmp',0
-filename_bg2 db 'bg2.bmp',0
 
 current_x DW 0Ah ; X postion of the current object
 current_y DW 0Ah ; Y postion of the current object
@@ -129,20 +128,6 @@ proc OpenFileBg1
 endp OpenFileBg1
 
 
-proc OpenFileBg2
-	; Open file
-	mov ah, 3Dh
-	xor al, al
-	mov dx, offset filename_bg2
-	int 21h
-	jc openerror7
-	mov [filehandle], ax
-
-	ret
-	openerror7 :
-	call ExitProgram
-	ret
-endp OpenFileBg2
 
 
 
