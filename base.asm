@@ -621,11 +621,11 @@ mov [NextRandom], dx
 call prg
 
 
-cmp ax, 200 ; check the random number to see if it needs to start moving the Missle
+cmp ax, 500 ; check the random number to see if it needs to start moving the Missle
 jb CheckMissleMove
 
 
-cmp ax, 400 ; check the random number to see if it needs to start moving the coin
+cmp ax, 1000 ; check the random number to see if it needs to start moving the coin
 jb CheckCoinMove
 
 
@@ -679,34 +679,16 @@ ret
 
 
 EnableMoveMissle:
-;; get time
-mov ah, 2Ch 
-int 21h
-
-;; set seed as secs:mi secs
-mov [NextRandom], dx
-    
-;; get (pseudo) random number
-call prg
-
-mov [missle_y], ax
-mov [missle_move], 1 ; turn on the missle's move status
+call RandomCoinY ; dx contains the random number
+mov [missle_y], dx
+mov [missle_move], 1 ; turn on the coin's move status
 mov [missle_x], 139h
 ret
 
 
 EnableMoveCoin:
-;; get time
-mov ah, 2Ch 
-int 21h
-
-;; set seed as secs:mi secs
-mov [NextRandom], dx
-    
-;; get (pseudo) random number
-call prg
-
-mov [coin_y], ax
+call RandomCoinY ; dx contains the random number
+mov [coin_y], dx
 mov [coin_move], 1 ; turn on the coin's move status
 mov [coin_x], 139h
 ret
