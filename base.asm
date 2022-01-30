@@ -82,7 +82,7 @@ player_coins DB 0
 
 TEXT_PLAYER_COINS DB '0', '$'
 TEXT_GAME_END_MENU DB 'GAME OVER', '$'
-TEXT_PLAY_AGAIN DB 'Press enter to play again11', '$'
+TEXT_PLAY_AGAIN DB 'Press enter to play again', '$'
 TEXT_COINS_HEADER DB 'MadanimCoins:', '$'
 
 filename_player db 'pic.bmp',0
