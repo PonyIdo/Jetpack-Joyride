@@ -24,6 +24,7 @@ time_last DB 0 ; used to check if the time has changed
 velocity DW 04h ; speed of the character
 
 enemies_velocity DW 8h ; speed of the enemies
+missle_velocity DW 15 ; speed of the enemies
 
 rand_fast DW 2000
 ; enemies loc
@@ -46,6 +47,14 @@ enemy_3_y DW 96h ; Y postion of the enemy 3 - 300
 coin_x DW 140h ; X postion of the coin
 coin_y DW 50h ; Y postion of the coin
 
+
+; missle property
+missle_x DW 140h ; X postion of the missle
+missle_y DW 50h ; Y postion of the missle
+
+
+
+
 current_height DW 40
 current_width DW 12
 
@@ -62,6 +71,7 @@ enemy_1_move DB 0
 enemy_2_move DB 0
 enemy_3_move DB 0
 coin_move DB 0
+missle_move DB 0
 
 
 
@@ -77,6 +87,7 @@ TEXT_COINS_HEADER DB 'MadanimCoins:', '$'
 
 filename_player db 'pic.bmp',0
 filename_enemy db 'pics.bmp',0
+filename_missle db 'missle.bmp',0
 filename_coin db 'coin.bmp',0
 filename_heart1 db 'heart1.bmp',0
 filename_heart2 db 'heart2.bmp',0
@@ -163,6 +174,23 @@ proc OpenFileEnemy
 	call ExitProgram
 	ret
 endp OpenFileEnemy
+
+
+proc OpenFileMissle
+	; Open file
+	mov ah, 3Dh
+	xor al, al
+	mov dx, offset filename_missle
+	int 21h
+	jc openerror11
+	mov [filehandle], ax
+
+	ret
+	openerror11 :
+	call ExitProgram
+	ret
+endp OpenFileMissle
+
 
 proc OpenFileCoin
 	; Open file
@@ -310,6 +338,41 @@ endp DRAW_GAME_OVER_MENU
 
 proc CheckIntersection
 
+	MissleIntersection:
+	; X axis intersection - case 1
+	mov ax, [missle_x]
+	sub ax, [missle_velocity]
+	cmp ax, [character_x]
+
+	jge CoinIntersection ; no intersection
+
+	; X axis intersection - case 2
+	mov ax, [missle_x]
+	cmp ax, [character_x]
+
+	jle CoinIntersection ; no intersection
+
+	; Y axis intersection - case 1
+	mov ax, [character_y]
+	add ax, [character_height]
+	cmp ax, [missle_y]
+	jle CoinIntersection ; no intersection
+
+	; Y axis intersection - case 2
+	mov ax, [missle_y]
+	add ax, [enemy_height]
+	cmp [character_y], ax 
+	jge CoinIntersection ; no intersection
+
+		; Here we have an intersection
+	dec [player_lives]
+
+	ret ; exit because there was an intersection
+
+
+
+
+
 	CoinIntersection:
 	; X axis intersection - case 1
 	mov ax, [coin_x]
@@ -329,7 +392,7 @@ proc CheckIntersection
 	mov ax, [character_y]
 	add ax, [character_height]
 	cmp ax, [coin_y]
-	jle Enemy2Intersection ; no intersection
+	jle Enemy1Intersection ; no intersection
 
 	; Y axis intersection - case 2
 	mov ax, [coin_y]
@@ -558,10 +621,11 @@ mov [NextRandom], dx
 call prg
 
 
+cmp ax, 200 ; check the random number to see if it needs to start moving the Missle
+jb CheckMissleMove
 
 
-
-cmp ax, 200 ; check the random number to see if it needs to start moving the coin
+cmp ax, 400 ; check the random number to see if it needs to start moving the coin
 jb CheckCoinMove
 
 
@@ -581,6 +645,12 @@ jb CheckEnemy3Move
 
 
 
+ret
+
+
+CheckMissleMove:
+cmp [missle_move], 0
+je EnableMoveMissle
 ret
 
 CheckCoinMove:
@@ -608,10 +678,35 @@ ret
 
 
 
+EnableMoveMissle:
+;; get time
+mov ah, 2Ch 
+int 21h
+
+;; set seed as secs:mi secs
+mov [NextRandom], dx
+    
+;; get (pseudo) random number
+call prg
+
+mov [missle_y], ax
+mov [missle_move], 1 ; turn on the missle's move status
+mov [missle_x], 139h
+ret
+
 
 EnableMoveCoin:
-call RandomCoinY ; dx contains the random number
-mov [coin_y], dx
+;; get time
+mov ah, 2Ch 
+int 21h
+
+;; set seed as secs:mi secs
+mov [NextRandom], dx
+    
+;; get (pseudo) random number
+call prg
+
+mov [coin_y], ax
 mov [coin_move], 1 ; turn on the coin's move status
 mov [coin_x], 139h
 ret
@@ -655,6 +750,9 @@ endp StartSendEnemies
 proc MoveEnemies
 mov ax, [enemies_velocity]
 
+CheckMoveStatusMissle:
+cmp [missle_move], 1
+je MoveMissle
 
 CheckMoveStatusCoin:
 cmp [coin_move], 1
@@ -673,6 +771,12 @@ cmp [enemy_3_move], 1
 je MoveEnemy3
 
 ret
+
+MoveMissle:
+mov ax, [missle_velocity]
+sub [missle_x], ax
+mov ax, [enemies_velocity]
+jmp CheckMoveStatusCoin
 
 MoveCoin:
 sub [coin_x], ax
@@ -697,6 +801,10 @@ endp MoveEnemies
 
 proc ResetEnemies
 
+CheckResetMissle:
+cmp [missle_x], 16 ; checking if it's about to hit the end of the map
+jl ResetMissleX
+
 CheckResetCoin:
 cmp [coin_x], 8 ; checking if it's about to hit the end of the map
 jl ResetCoinX
@@ -717,6 +825,12 @@ cmp [enemy_3_x], 8 ; checking if it's about to hit the end of the map
 jl ResetEnemy3X
 
 ret
+
+ResetMissleX:
+mov [missle_x], 140h
+mov [missle_move], 0 ; reset the missle's move status
+jmp CheckResetCoin
+
 
 ResetCoinX:
 mov [coin_x], 140h
@@ -861,6 +975,154 @@ proc ExitProgram
 	mov ah, 4Ch
 	int 21h
 endp ExitProgram
+
+
+proc DrawCoinProc
+	mov [current_height], 16
+	mov [current_width], 16
+
+  ;Draw coin
+	mov ax, [coin_y] ; y pos of the coin
+	mov [current_y], ax ; y pos of the coin
+	mov ax, [coin_x] ; x pos of the coin
+	mov [current_x], ax ; x pos of the coin
+
+
+  call OpenFileCoin
+  call ReadHeader
+  call ReadPalette
+  call CopyPal
+  call CopyBitmap
+  call CloseFile
+  ret
+ endp DrawCoinProc
+
+
+
+proc DrawMissleProc
+	mov [current_height], 16
+	mov [current_width], 32
+
+  ;Draw Missle
+	mov ax, [missle_y] ; y pos of the missle
+	mov [current_y], ax ; y pos of the missle
+	mov ax, [missle_x] ; x pos of the missle
+	mov [current_x], ax ; x pos of the missle
+
+
+  call OpenFileMissle
+  call ReadHeader
+  call ReadPalette
+  call CopyPal
+  call CopyBitmap
+  call CloseFile
+  ret
+
+endp DrawMissleProc
+
+
+
+
+proc DrawEnemies
+
+	; enemies are taller
+	mov [current_height], 40
+	mov [current_width], 12
+
+	CheckDraw1:
+	cmp [enemy_1_move], 1
+	je Draw1
+
+	CheckDraw2:
+	cmp [enemy_2_move], 1
+	je Draw2
+
+	CheckDraw3:
+	cmp [enemy_3_move], 1
+	je Draw3
+
+	CheckCoin:
+	cmp [coin_move], 1
+	je DrawCoin
+
+
+	CheckMissle:
+	cmp [missle_move], 1
+	je DrawMissle
+
+ret
+
+
+
+
+
+
+
+	Draw1:
+	mov ax, [enemy_1_y] ; y pos of enemy 1
+	mov [current_y], ax ; y pos of enemy 1
+	mov ax, [enemy_1_x] ; x pos of enemy 1
+	mov [current_x], ax ; x pos of enemy 1
+
+	call OpenFileEnemy
+  call ReadHeader
+  call ReadPalette
+  call CopyPal
+  call CopyBitmap
+  call CloseFile
+  jmp CheckDraw2
+
+	
+
+	Draw2:
+	mov ax, [enemy_2_y] ; y pos of enemy 2
+	mov [current_y], ax ; y pos of enemy 2
+	mov ax, [enemy_2_x] ; x pos of enemy 2
+	mov [current_x], ax ; x pos of enemy 2
+
+	call OpenFileEnemy
+  call ReadHeader
+  call ReadPalette
+  call CopyPal
+  call CopyBitmap
+  call CloseFile
+  jmp CheckDraw3
+
+
+
+	Draw3:
+	mov ax, [enemy_3_y] ; y pos of enemy 3
+	mov [current_y], ax ; y pos of enemy 3
+	mov ax, [enemy_3_x] ; x pos of enemy 3
+	mov [current_x], ax ; x pos of enemy 3
+
+	call OpenFileEnemy
+  call ReadHeader
+  call ReadPalette
+  call CopyPal
+  call CopyBitmap
+  call CloseFile
+  jmp CheckCoin
+
+
+DrawCoin:
+call DrawCoinProc
+jmp CheckMissle
+
+
+DrawMissle:
+call DrawMissleProc
+ret
+
+
+
+
+
+
+
+  
+
+endp DrawEnemies
 
 
 
@@ -1056,104 +1318,7 @@ endp DrawHeartBar
 
 
 
-proc DrawEnemies
 
-	; enemies are taller
-	mov [current_height], 40
-	mov [current_width], 12
-
-	CheckDraw1:
-	cmp [enemy_1_move], 1
-	je Draw1
-
-	CheckDraw2:
-	cmp [enemy_2_move], 1
-	je Draw2
-
-	CheckDraw3:
-	cmp [enemy_3_move], 1
-	je Draw3
-
-	CheckCoin:
-	cmp [coin_move], 1
-	je DrawCoin
-
-ret
-
-
-
-
-
-
-
-	Draw1:
-	mov ax, [enemy_1_y] ; y pos of enemy 1
-	mov [current_y], ax ; y pos of enemy 1
-	mov ax, [enemy_1_x] ; x pos of enemy 1
-	mov [current_x], ax ; x pos of enemy 1
-
-	call OpenFileEnemy
-  call ReadHeader
-  call ReadPalette
-  call CopyPal
-  call CopyBitmap
-  call CloseFile
-  jmp CheckDraw2
-
-	
-
-	Draw2:
-	mov ax, [enemy_2_y] ; y pos of enemy 2
-	mov [current_y], ax ; y pos of enemy 2
-	mov ax, [enemy_2_x] ; x pos of enemy 2
-	mov [current_x], ax ; x pos of enemy 2
-
-	call OpenFileEnemy
-  call ReadHeader
-  call ReadPalette
-  call CopyPal
-  call CopyBitmap
-  call CloseFile
-  jmp CheckDraw3
-
-
-
-	Draw3:
-	mov ax, [enemy_3_y] ; y pos of enemy 3
-	mov [current_y], ax ; y pos of enemy 3
-	mov ax, [enemy_3_x] ; x pos of enemy 3
-	mov [current_x], ax ; x pos of enemy 3
-
-	call OpenFileEnemy
-  call ReadHeader
-  call ReadPalette
-  call CopyPal
-  call CopyBitmap
-  call CloseFile
-  jmp CheckCoin
-
-
-
-  DrawCoin:
-	mov [current_height], 16
-	mov [current_width], 16
-
-  ;Draw coin
-	mov ax, [coin_y] ; y pos of the coin
-	mov [current_y], ax ; y pos of the coin
-	mov ax, [coin_x] ; x pos of the coin
-	mov [current_x], ax ; x pos of the coin
-
-
-  call OpenFileCoin
-  call ReadHeader
-  call ReadPalette
-  call CopyPal
-  call CopyBitmap
-  call CloseFile
-  ret
-
-endp DrawEnemies
 
 
 
