@@ -11,7 +11,7 @@ WINDOW_HEIGHT DW 0c8h ; height of the window
 NextRandom dw 0
 
 ; Game active status (Yes(1)\No(0))
-game_active DB 1h
+game_active DB 0h
 
 ; Exit the game (Yes(1)\No(0))
 exit_game DB 0h
@@ -52,7 +52,7 @@ current_width DW 12
 
 
 
-scrollX DW 0
+scrollX DW 320
 
 
 
@@ -72,7 +72,7 @@ player_coins DB 0
 
 TEXT_PLAYER_COINS DB '0', '$'
 TEXT_GAME_END_MENU DB 'GAME OVER', '$'
-TEXT_PLAY_AGAIN DB 'Press enter to play again', '$'
+TEXT_PLAY_AGAIN DB 'Press enter to play again11', '$'
 TEXT_COINS_HEADER DB 'MadanimCoins:', '$'
 
 filename_player db 'pic.bmp',0
@@ -83,6 +83,7 @@ filename_heart2 db 'heart2.bmp',0
 filename_heart3 db 'heart3.bmp',0
 
 filename_bg1 db 'bg1.bmp',0
+filename_bg2 db 'bg2.bmp',0
 
 current_x DW 0Ah ; X postion of the current object
 current_y DW 0Ah ; Y postion of the current object
@@ -126,6 +127,21 @@ proc OpenFileBg1
 	call ExitProgram
 	ret
 endp OpenFileBg1
+
+proc OpenFileBg2
+	; Open file
+	mov ah, 3Dh
+	xor al, al
+	mov dx, offset filename_bg2
+	int 21h
+	jc openerror10
+	mov [filehandle], ax
+
+	ret
+	openerror10 :
+	call ExitProgram
+	ret
+endp OpenFileBg2
 
 
 
@@ -213,30 +229,36 @@ endp OpenFileHeart3
 
 
 proc DRAW_GAME_OVER_MENU
-	call ClearScreen
 
-	; Displaying game menu
-	mov ah, 02h ; cursor position
-	mov bh, 00h ; page number
-	mov dh, 04h ; row
-	mov dl, 10h ; column
-	int 10h 
+	add [scrollX], 10
+	call BackgroundMove
 
-	mov ah, 09h ; write string to standart output
-	lea dx, [TEXT_GAME_END_MENU]
-	int 21h
+
+	mov [current_y], 50 ; y pos of enemy 1
+	mov [current_x], 60 ; x pos of enemy 1
+	mov [current_height], 100
+	mov [current_width], 164
+
+	call OpenFileBg2
+  call ReadHeader
+  call ReadPalette
+  call CopyPal
+  call CopyBitmap
+  call CloseFile
+
 
 
 	; Displaying play again message
 	mov ah, 02h ; cursor position
 	mov bh, 00h ; page number
-	mov dh, 08h ; row
-	mov dl, 02h ; column
+	mov dh, 13h ; row
+	mov dl, 04h ; column
 	int 10h
 
 	mov ah, 09h ; write string to standart output
 	lea dx, [TEXT_PLAY_AGAIN]
 	int 21h
+	
 
 
 
@@ -1136,7 +1158,7 @@ endp DrawEnemies
 
 
 proc BackgroundMove
-add [scrollX], 10
+sub [scrollX], 10
 mov ax, [scrollX]
 
 mov cx, 4
@@ -1158,21 +1180,21 @@ push ax
   call CloseFile
   pop ax
   pop cx
-  add ax, 80
+  sub ax, 80
 
   loop BgLoopDraw
 
 
 
-  cmp [scrollX], 320
-  jge ResetScrollX
+  cmp [scrollX], 0
+  jle ResetScrollX
 
   
 
   ret
 
   ResetScrollX:
-  mov [scrollX], 0
+  mov [scrollX], 320
   ret
 endp BackgroundMove
 
