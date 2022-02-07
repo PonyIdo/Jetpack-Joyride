@@ -10,13 +10,38 @@ WINDOW_HEIGHT DW 0c8h ; height of the window
 
 NextRandom dw 0
 
+
+
+
+
+; Ports
+pit db 43h
+pit2 db 42h
+
+delay dw 1700 
+
+filename_wav db "hurt.wav", 0 
+filename_wav_game_over db "GameOver.wav", 0 
+
+filehandle_wav dw 0
+
+
+Buffer db 0
+
+
+; First Game status (Yes(1)\No(0))
+first_game DB 1h
+
+
+
+
 ; Game active status (Yes(1)\No(0))
 game_active DB 0h
 
 ; Exit the game (Yes(1)\No(0))
 exit_game DB 0h
 
-character_x DW 0Ah ; X postion of the character
+character_x DW 30 ; X postion of the character
 character_y DW 0Ah ; Y postion of the character
 character_height DW 0Eh
 enemy_height DW 01Ch
@@ -24,7 +49,7 @@ time_last DB 0 ; used to check if the time has changed
 velocity DW 04h ; speed of the character
 
 enemies_velocity DW 8h ; speed of the enemies
-missle_velocity DW 15 ; speed of the enemies
+missile_velocity DW 15 ; speed of the enemies
 
 rand_fast DW 2000
 ; enemies loc
@@ -48,9 +73,9 @@ coin_x DW 140h ; X postion of the coin
 coin_y DW 50h ; Y postion of the coin
 
 
-; missle property
-missle_x DW 140h ; X postion of the missle
-missle_y DW 50h ; Y postion of the missle
+; missile property
+missile_x DW 140h ; X postion of the missile
+missile_y DW 40 ; Y postion of the missile
 
 
 
@@ -71,7 +96,7 @@ enemy_1_move DB 0
 enemy_2_move DB 0
 enemy_3_move DB 0
 coin_move DB 0
-missle_move DB 0
+missile_move DB 0
 
 
 
@@ -83,11 +108,12 @@ player_coins DB 0
 TEXT_PLAYER_COINS DB '0', '$'
 TEXT_GAME_END_MENU DB 'GAME OVER', '$'
 TEXT_PLAY_AGAIN DB 'Press enter to play again', '$'
+TEXT_EXPLANATION DB 'Tutorial:To go up press the SPACE button     You need to avoid the obstacles!', '$'
 TEXT_COINS_HEADER DB 'MadanimCoins:', '$'
 
 filename_player db 'pic.bmp',0
 filename_enemy db 'pics.bmp',0
-filename_missle db 'missle.bmp',0
+filename_missile db 'missile.bmp',0
 filename_coin db 'coin.bmp',0
 filename_heart1 db 'heart1.bmp',0
 filename_heart2 db 'heart2.bmp',0
@@ -176,11 +202,11 @@ proc OpenFileEnemy
 endp OpenFileEnemy
 
 
-proc OpenFileMissle
+proc OpenFilemissile
 	; Open file
 	mov ah, 3Dh
 	xor al, al
-	mov dx, offset filename_missle
+	mov dx, offset filename_missile
 	int 21h
 	jc openerror11
 	mov [filehandle], ax
@@ -189,7 +215,7 @@ proc OpenFileMissle
 	openerror11 :
 	call ExitProgram
 	ret
-endp OpenFileMissle
+endp OpenFilemissile
 
 
 proc OpenFileCoin
@@ -286,10 +312,25 @@ proc DRAW_GAME_OVER_MENU
 	mov ah, 09h ; write string to standart output
 	lea dx, [TEXT_PLAY_AGAIN]
 	int 21h
+
+
+
+
+	; Displaying play again message
+	mov ah, 02h ; cursor position
+	mov bh, 00h ; page number
+	mov dh, 2h ; row
+	mov dl, 00h ; column
+	int 10h
+
+	mov ah, 09h ; write string to standart output
+	lea dx, [TEXT_EXPLANATION]
+	int 21h
 	
 
-
-
+cmp [first_game], 1
+je KEY_PRESS_WAIT
+call PlayGameOverSound
 
 	KEY_PRESS_WAIT:
 
@@ -338,34 +379,48 @@ endp DRAW_GAME_OVER_MENU
 
 proc CheckIntersection
 
-	MissleIntersection:
+	missileIntersection:
 	; X axis intersection - case 1
-	mov ax, [missle_x]
-	sub ax, [missle_velocity]
+	mov ax, [missile_x]
+	sub ax, [missile_velocity]
 	cmp ax, [character_x]
 
 	jge CoinIntersection ; no intersection
 
 	; X axis intersection - case 2
-	mov ax, [missle_x]
+	mov ax, [missile_x]
 	cmp ax, [character_x]
 
 	jle CoinIntersection ; no intersection
 
+	mov cx, 4
+	mov bx, [missile_y]
+
+	LoopYIntersectionmissile:
 	; Y axis intersection - case 1
 	mov ax, [character_y]
-	add ax, [character_height]
-	cmp ax, [missle_y]
-	jle CoinIntersection ; no intersection
+	add ax, 16
+	cmp ax, bx
+	jl NoIntersection ; no intersection
 
 	; Y axis intersection - case 2
-	mov ax, [missle_y]
-	add ax, [enemy_height]
+	mov ax, bx
+	add ax, 16
 	cmp [character_y], ax 
-	jge CoinIntersection ; no intersection
+	jl missileIntersect ; intersection
 
+NoIntersection:
+	add bx, 40
+	loop LoopYIntersectionmissile
+
+	jmp CoinIntersection ; no intersection
+
+
+
+	missileIntersect:
 		; Here we have an intersection
 	dec [player_lives]
+	call PlayDeathSound
 
 	ret ; exit because there was an intersection
 
@@ -443,6 +498,7 @@ proc CheckIntersection
 
 	; Here we have an intersection
 	dec [player_lives]
+	call PlayDeathSound
 
 	ret ; exit because there was an intersection
 
@@ -479,6 +535,7 @@ proc CheckIntersection
 
 	; Here we have an intersection
 	dec [player_lives]
+	call PlayDeathSound
 
 	ret ; exit because there was an intersection
 
@@ -515,6 +572,7 @@ proc CheckIntersection
 
 	; Here we have an intersection
 	dec [player_lives]
+	call PlayDeathSound
 
 	ret ; exit because there was an intersection
 
@@ -621,11 +679,11 @@ mov [NextRandom], dx
 call prg
 
 
-cmp ax, 500 ; check the random number to see if it needs to start moving the Missle
-jb CheckMissleMove
+cmp ax, 400 ; check the random number to see if it needs to start moving the missile
+jb CheckmissileMove
 
 
-cmp ax, 1000 ; check the random number to see if it needs to start moving the coin
+cmp ax, 800 ; check the random number to see if it needs to start moving the coin
 jb CheckCoinMove
 
 
@@ -648,9 +706,9 @@ jb CheckEnemy3Move
 ret
 
 
-CheckMissleMove:
-cmp [missle_move], 0
-je EnableMoveMissle
+CheckmissileMove:
+cmp [missile_move], 0
+je EnableMovemissile
 ret
 
 CheckCoinMove:
@@ -678,11 +736,9 @@ ret
 
 
 
-EnableMoveMissle:
-call RandomCoinY ; dx contains the random number
-mov [missle_y], dx
-mov [missle_move], 1 ; turn on the coin's move status
-mov [missle_x], 139h
+EnableMovemissile:
+mov [missile_move], 1 ; turn on the coin's move status
+mov [missile_x], 139h
 ret
 
 
@@ -732,9 +788,9 @@ endp StartSendEnemies
 proc MoveEnemies
 mov ax, [enemies_velocity]
 
-CheckMoveStatusMissle:
-cmp [missle_move], 1
-je MoveMissle
+CheckMoveStatusmissile:
+cmp [missile_move], 1
+je Movemissile
 
 CheckMoveStatusCoin:
 cmp [coin_move], 1
@@ -754,9 +810,9 @@ je MoveEnemy3
 
 ret
 
-MoveMissle:
-mov ax, [missle_velocity]
-sub [missle_x], ax
+Movemissile:
+mov ax, [missile_velocity]
+sub [missile_x], ax
 mov ax, [enemies_velocity]
 jmp CheckMoveStatusCoin
 
@@ -783,9 +839,9 @@ endp MoveEnemies
 
 proc ResetEnemies
 
-CheckResetMissle:
-cmp [missle_x], 16 ; checking if it's about to hit the end of the map
-jl ResetMissleX
+CheckResetmissile:
+cmp [missile_x], 10 ; checking if it's about to hit the end of the map
+jl ResetmissileX
 
 CheckResetCoin:
 cmp [coin_x], 8 ; checking if it's about to hit the end of the map
@@ -808,9 +864,9 @@ jl ResetEnemy3X
 
 ret
 
-ResetMissleX:
-mov [missle_x], 140h
-mov [missle_move], 0 ; reset the missle's move status
+ResetmissileX:
+mov [missile_x], 140h
+mov [missile_move], 0 ; reset the missile's move status
 jmp CheckResetCoin
 
 
@@ -981,26 +1037,33 @@ proc DrawCoinProc
 
 
 
-proc DrawMissleProc
+proc DrawmissileProc
 	mov [current_height], 16
 	mov [current_width], 32
 
-  ;Draw Missle
-	mov ax, [missle_y] ; y pos of the missle
-	mov [current_y], ax ; y pos of the missle
-	mov ax, [missle_x] ; x pos of the missle
-	mov [current_x], ax ; x pos of the missle
 
+	mov ax, [missile_y] ; y pos of the missile
+	mov [current_y], ax ; y pos of the missile
+	mov ax, [missile_x] ; x pos of the missile
+	mov [current_x], ax ; x pos of the missile
 
-  call OpenFileMissle
+	mov cx, 4
+
+  missileDrawLoop:
+  push cx
+  call OpenFilemissile
   call ReadHeader
   call ReadPalette
   call CopyPal
   call CopyBitmap
   call CloseFile
+  pop cx
+  add [current_y], 40
+  loop missileDrawLoop
+
   ret
 
-endp DrawMissleProc
+endp DrawmissileProc
 
 
 
@@ -1028,9 +1091,9 @@ proc DrawEnemies
 	je DrawCoin
 
 
-	CheckMissle:
-	cmp [missle_move], 1
-	je DrawMissle
+	Checkmissile:
+	cmp [missile_move], 1
+	je Drawmissile
 
 ret
 
@@ -1089,11 +1152,11 @@ ret
 
 DrawCoin:
 call DrawCoinProc
-jmp CheckMissle
+jmp Checkmissile
 
 
-DrawMissle:
-call DrawMissleProc
+Drawmissile:
+call DrawmissileProc
 ret
 
 
@@ -1227,7 +1290,12 @@ endp CopyBitmap
 
 
 
-
+proc CloseFileWav
+  mov  ah, 3Eh
+  mov  bx, [filehandle_wav]
+  int  21h
+  ret
+endp CloseFileWav
 
 proc CloseFile
   mov  ah, 3Eh
@@ -1350,11 +1418,98 @@ endp BackgroundMove
 
 
 
+proc read ; Read next sample
+    push bx
+    push cx
+    push dx
+    mov ah, 3Fh
+    mov bx, [filehandle_wav]
+    mov cx, 1
+    lea dx, [Buffer]
+    int 21h
+   
+    mov al, [Buffer]
+    xor ah, ah
+    mov bx, 54
+    mul bx
+    ;call PrintAX
+    ; mov ax, dx ; Result is in DX because we need to div by 65536 which is all of AX
+    shr ax, 8
+    pop dx
+    pop cx
+    pop bx
+    ret
+endp read
 
 
+proc PlayGameOverSound
+mov ah, 3Dh
+    xor al, al
+    lea dx, [filename_wav_game_over]
+    int 21h
+    mov [filehandle_wav], ax
+    mov al, 90h
+    out 43h, al
+    in al, 61h
+    or al, 3
+    out 61h, al
+    cli
+    mov ax, 0
+mov cx, 65535
+	totalloop1:
+	push cx
+    call read ; Read file
+    out 42h, al ; Send data
+    mov bx, ax
+    mov cx, [delay]
+	portloop1:
+    loop portloop1
+    mov ax, bx
+    out 42h, ax ; Send data
+    mov cx, [delay]
+	rloop1:
+    loop rloop1
+    call read
+    pop cx
+    loop totalloop1
+    call CloseFileWav
+    ret
+endp PlayGameOverSound
 
 
-
+proc PlayDeathSound
+mov ah, 3Dh
+    xor al, al
+    lea dx, [filename_wav]
+    int 21h
+    mov [filehandle_wav], ax
+    mov al, 90h
+    out 43h, al
+    in al, 61h
+    or al, 3
+    out 61h, al
+    cli
+    mov ax, 0
+mov cx, 17000
+	totalloop:
+	push cx
+    call read ; Read file
+    out 42h, al ; Send data
+    mov bx, ax
+    mov cx, [delay]
+	portloop:
+    loop portloop
+    mov ax, bx
+    out 42h, ax ; Send data
+    mov cx, [delay]
+	rloop:
+    loop rloop
+    call read
+    pop cx
+    loop totalloop
+    call CloseFileWav
+    ret
+endp PlayDeathSound
 
 
 
@@ -1377,16 +1532,21 @@ start:
 	int 10h
 	call ClearScreen
 
+
+	
+
 	WAIT_FOR_TIME_CHANGE:
 
 	cmp [exit_game], 1h ; leave the game?
 	je EXIT_GAME_PROCESS
 
+
+
 	cmp [game_active], 00h ; checking if the game ended
 	je SHOW_GAME_OVER
 
 
-
+	mov [first_game], 0
 
 	; system time
 	mov ah, 2Ch
@@ -1408,7 +1568,7 @@ start:
 	call ResetEnemies
 	call StartSendEnemies
 	call MoveEnemies
-	call CheckIntersection
+	
 	call userInterfaceDraw
 	call DrawHeartBar
 
@@ -1432,6 +1592,8 @@ start:
 
 	call DrawEnemies
 	call CheckGameOver
+
+	call CheckIntersection
 
 	pop dx
 
