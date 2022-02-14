@@ -73,6 +73,11 @@ coin_x DW 140h ; X postion of the coin
 coin_y DW 50h ; Y postion of the coin
 
 
+; heart property
+heart_x DW 140h ; X postion of the heart
+heart_y DW 50h ; Y postion of the heart
+
+
 ; missile property
 missile_x DW 140h ; X postion of the missile
 missile_y DW 40 ; Y postion of the missile
@@ -96,6 +101,7 @@ enemy_1_move DB 0
 enemy_2_move DB 0
 enemy_3_move DB 0
 coin_move DB 0
+heart_move DB 0
 missile_move DB 0
 
 
@@ -115,6 +121,7 @@ filename_player db 'pic.bmp',0
 filename_enemy db 'pics.bmp',0
 filename_missile db 'missile.bmp',0
 filename_coin db 'coin.bmp',0
+filename_heart db 'heart.bmp',0
 filename_heart1 db 'heart1.bmp',0
 filename_heart2 db 'heart2.bmp',0
 filename_heart3 db 'heart3.bmp',0
@@ -233,6 +240,20 @@ proc OpenFileCoin
 	ret
 endp OpenFileCoin
 
+proc OpenFileHeart
+	; Open file
+	mov ah, 3Dh
+	xor al, al
+	mov dx, offset filename_heart
+	int 21h
+	jc openerror13
+	mov [filehandle], ax
+
+	ret
+	openerror13 :
+	call ExitProgram
+	ret
+endp OpenFileHeart
 
 proc OpenFileHeart1
 	; Open file
@@ -434,26 +455,26 @@ NoIntersection:
 	sub ax, [enemies_velocity]
 	cmp ax, [character_x]
 
-	jge Enemy1Intersection ; no intersection
+	jge HeartIntersection ; no intersection
 
 	; X axis intersection - case 2
 	mov ax, [coin_x]
 	cmp ax, [character_x]
 
-	jle Enemy1Intersection ; no intersection
+	jle HeartIntersection ; no intersection
 
 
 	; Y axis intersection - case 1
 	mov ax, [character_y]
 	add ax, [character_height]
 	cmp ax, [coin_y]
-	jle Enemy1Intersection ; no intersection
+	jle HeartIntersection ; no intersection
 
 	; Y axis intersection - case 2
 	mov ax, [coin_y]
 	add ax, [enemy_height]
 	cmp [character_y], ax 
-	jge Enemy1Intersection ; no intersection
+	jge HeartIntersection ; no intersection
 
 	; Here we have an intersection
 	inc [player_coins]
@@ -463,6 +484,49 @@ NoIntersection:
 	mov [coin_move], 0 ; reset the enemie's move status
 
 	ret ; exit because there was an intersection
+
+
+
+
+
+	HeartIntersection:
+	; X axis intersection - case 1
+	mov ax, [heart_x]
+	sub ax, [enemies_velocity]
+	cmp ax, [character_x]
+
+	jge Enemy1Intersection ; no intersection
+
+	; X axis intersection - case 2
+	mov ax, [heart_x]
+	cmp ax, [character_x]
+
+	jle Enemy1Intersection ; no intersection
+
+
+	; Y axis intersection - case 1
+	mov ax, [character_y]
+	add ax, [character_height]
+	cmp ax, [heart_y]
+	jle Enemy1Intersection ; no intersection
+
+	; Y axis intersection - case 2
+	mov ax, [heart_y]
+	add ax, [enemy_height]
+	cmp [character_y], ax 
+	jge Enemy1Intersection ; no intersection
+
+	; Here we have an intersection
+	inc [player_lives]
+
+	; hide heart
+	mov [heart_x], 140h
+	mov [heart_move], 0 ; reset the enemie's move status
+
+	ret ; exit because there was an intersection
+
+
+
 
 
 
@@ -679,11 +743,13 @@ mov [NextRandom], dx
 call prg
 
 
-cmp ax, 400 ; check the random number to see if it needs to start moving the missile
+cmp ax, 250 ; check the random number to see if it needs to start moving the missile
 jb CheckmissileMove
 
+cmp ax, 600 ; check the random number to see if it needs to start moving the heart
+jb CheckHeartMove
 
-cmp ax, 800 ; check the random number to see if it needs to start moving the coin
+cmp ax, 1000 ; check the random number to see if it needs to start moving the coin
 jb CheckCoinMove
 
 
@@ -716,6 +782,15 @@ cmp [coin_move], 0
 je EnableMoveCoin
 ret
 
+
+CheckHeartMove:
+cmp [player_lives], 3
+je SkipHeartSend
+cmp [heart_move], 0
+je EnableMoveHeart
+SkipHeartSend:
+ret
+
 CheckEnemy1Move:
 cmp [enemy_1_move], 0
 je EnableMove1
@@ -741,6 +816,13 @@ mov [missile_move], 1 ; turn on the coin's move status
 mov [missile_x], 139h
 ret
 
+
+EnableMoveHeart:
+call RandomCoinY ; dx contains the random number
+mov [heart_y], dx
+mov [heart_move], 1 ; turn on the coin's move status
+mov [heart_x], 139h
+ret
 
 EnableMoveCoin:
 call RandomCoinY ; dx contains the random number
@@ -796,6 +878,10 @@ CheckMoveStatusCoin:
 cmp [coin_move], 1
 je MoveCoin
 
+CheckMoveStatusHeart:
+cmp [heart_move], 1
+je MoveHeart
+
 CheckMoveStatusEnemy1:
 cmp [enemy_1_move], 1
 je MoveEnemy1
@@ -818,7 +904,13 @@ jmp CheckMoveStatusCoin
 
 MoveCoin:
 sub [coin_x], ax
+jmp CheckMoveStatusHeart
+
+
+MoveHeart:
+sub [heart_x], ax
 jmp CheckMoveStatusEnemy1
+
 
 MoveEnemy1:
 sub [enemy_1_x], ax
@@ -848,6 +940,11 @@ cmp [coin_x], 8 ; checking if it's about to hit the end of the map
 jl ResetCoinX
 
 
+CheckResetHeart:
+cmp [heart_x], 8 ; checking if it's about to hit the end of the map
+jl ResetHeartX
+
+
 CheckResetEnemy1:
 cmp [enemy_1_x], 8 ; checking if it's about to hit the end of the map
 jl ResetEnemy1X
@@ -873,6 +970,12 @@ jmp CheckResetCoin
 ResetCoinX:
 mov [coin_x], 140h
 mov [coin_move], 0 ; reset the coin's move status
+jmp CheckResetHeart
+
+
+ResetHeartX:
+mov [heart_x], 140h
+mov [heart_move], 0 ; reset the heart's move status
 jmp CheckResetEnemy1
 
 ResetEnemy1X:
@@ -1036,6 +1139,27 @@ proc DrawCoinProc
  endp DrawCoinProc
 
 
+proc DrawHeartProc
+	mov [current_height], 16
+	mov [current_width], 16
+
+  ;Draw heart
+	mov ax, [heart_y] ; y pos of the heart
+	mov [current_y], ax ; y pos of the heart
+	mov ax, [heart_x] ; x pos of the heart
+	mov [current_x], ax ; x pos of the heart
+
+
+  call OpenFileHeart
+  call ReadHeader
+  call ReadPalette
+  call CopyPal
+  call CopyBitmap
+  call CloseFile
+  ret
+ endp DrawHeartProc
+
+
 
 proc DrawmissileProc
 	mov [current_height], 16
@@ -1089,6 +1213,10 @@ proc DrawEnemies
 	CheckCoin:
 	cmp [coin_move], 1
 	je DrawCoin
+
+	CheckHeart:
+	cmp [Heart_move], 1
+	je DrawHeart
 
 
 	Checkmissile:
@@ -1152,8 +1280,11 @@ ret
 
 DrawCoin:
 call DrawCoinProc
-jmp Checkmissile
+jmp CheckHeart
 
+DrawHeart:
+call DrawHeartProc
+jmp Checkmissile
 
 Drawmissile:
 call DrawmissileProc
