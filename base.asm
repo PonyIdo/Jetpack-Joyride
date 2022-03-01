@@ -18,10 +18,10 @@ NextRandom dw 0
 pit db 43h
 pit2 db 42h
 
-delay dw 1700 
+delay dw 1200 
 
-filename_wav db "hurt.wav", 0 
 filename_wav_game_over db "GameOver.wav", 0 
+filename_wav_music db "music.wav", 0 
 
 filehandle_wav dw 0
 
@@ -351,6 +351,7 @@ proc DRAW_GAME_OVER_MENU
 
 cmp [first_game], 1
 je KEY_PRESS_WAIT
+call CloseFileWav
 call PlayGameOverSound
 
 	KEY_PRESS_WAIT:
@@ -370,6 +371,7 @@ call PlayGameOverSound
 	
 
 	; Game active status - starts the game
+	call InitiateMusic
 	mov [game_active], 01h
 
 
@@ -441,7 +443,6 @@ NoIntersection:
 	missileIntersect:
 		; Here we have an intersection
 	dec [player_lives]
-	call PlayDeathSound
 
 	ret ; exit because there was an intersection
 
@@ -562,7 +563,6 @@ NoIntersection:
 
 	; Here we have an intersection
 	dec [player_lives]
-	call PlayDeathSound
 
 	ret ; exit because there was an intersection
 
@@ -599,8 +599,6 @@ NoIntersection:
 
 	; Here we have an intersection
 	dec [player_lives]
-	call PlayDeathSound
-
 	ret ; exit because there was an intersection
 
 
@@ -636,8 +634,6 @@ NoIntersection:
 
 	; Here we have an intersection
 	dec [player_lives]
-	call PlayDeathSound
-
 	ret ; exit because there was an intersection
 
 	IntersectionEnd:
@@ -1573,20 +1569,11 @@ proc read ; Read next sample
 endp read
 
 
-proc PlayGameOverSound
-mov ah, 3Dh
-    xor al, al
-    lea dx, [filename_wav_game_over]
-    int 21h
-    mov [filehandle_wav], ax
-    mov al, 90h
-    out 43h, al
-    in al, 61h
-    or al, 3
-    out 61h, al
-    cli
-    mov ax, 0
-mov cx, 65535
+
+
+
+proc RealPlay
+	mov cx, 1600
 	totalloop1:
 	push cx
     call read ; Read file
@@ -1603,15 +1590,15 @@ mov cx, 65535
     call read
     pop cx
     loop totalloop1
-    call CloseFileWav
     ret
-endp PlayGameOverSound
+endp RealPlay
 
 
-proc PlayDeathSound
-mov ah, 3Dh
+proc PlayGameOverSound
+mov [delay], 1700
+	mov ah, 3Dh
     xor al, al
-    lea dx, [filename_wav]
+    lea dx, [filename_wav_game_over]
     int 21h
     mov [filehandle_wav], ax
     mov al, 90h
@@ -1621,26 +1608,48 @@ mov ah, 3Dh
     out 61h, al
     cli
     mov ax, 0
-mov cx, 17000
-	totalloop:
+mov cx, 65535
+	totalloop2:
 	push cx
     call read ; Read file
     out 42h, al ; Send data
     mov bx, ax
     mov cx, [delay]
-	portloop:
-    loop portloop
+	portloop2:
+    loop portloop1
     mov ax, bx
     out 42h, ax ; Send data
     mov cx, [delay]
-	rloop:
-    loop rloop
+	rloop2:
+    loop rloop2
     call read
     pop cx
-    loop totalloop
+    loop totalloop2
     call CloseFileWav
+
     ret
-endp PlayDeathSound
+endp PlayGameOverSound
+
+
+proc InitiateMusic
+mov ah, 3Dh
+		mov [delay], 1200
+    xor al, al
+    lea dx, [filename_wav_music]
+    int 21h
+    mov [filehandle_wav], ax
+    mov al, 90h
+    out 43h, al
+    in al, 61h
+    or al, 3
+    out 61h, al
+    cli
+    mov ax, 0
+    ret
+endp InitiateMusic
+
+
+
 
 
 
@@ -1663,7 +1672,7 @@ start:
 	int 10h
 	call ClearScreen
 
-
+	call InitiateMusic
 	
 
 	WAIT_FOR_TIME_CHANGE:
@@ -1692,12 +1701,28 @@ start:
 	; the time has changed and we can change the new frame
 	push dx
 	
+
+
+	call RealPlay
+
 	call ClearScreen
+
+
 	call BackgroundMove
+
+
 	call MovementDirectionUpdate
+
+
 	call CharacterMove
+
+
 	call ResetEnemies
+
+
 	call StartSendEnemies
+
+
 	call MoveEnemies
 	
 	call userInterfaceDraw
