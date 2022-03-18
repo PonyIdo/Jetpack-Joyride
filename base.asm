@@ -18,7 +18,15 @@ NextRandom dw 0
 pit db 43h
 pit2 db 42h
 
+
+
+
+default_delay dw 1200
+slow_delay dw 1600
+
 delay dw 1200 
+count_slow dw 0
+count_pause dw 0
 
 filename_wav_game_over db "GameOver.wav", 0 
 filename_wav_music db "music.wav", 0 
@@ -27,6 +35,9 @@ filehandle_wav dw 0
 
 
 Buffer db 0
+slow_music dw 0
+
+
 
 
 ; First Game status (Yes(1)\No(0))
@@ -72,6 +83,13 @@ enemy_3_y DW 96h ; Y postion of the enemy 3 - 300
 coin_x DW 140h ; X postion of the coin
 coin_y DW 50h ; Y postion of the coin
 
+; slow property
+slow_x DW 140h ; X postion of the coin
+slow_y DW 50h ; Y postion of the coin
+
+; pause property
+pause_x DW 140h ; X postion of the coin
+pause_y DW 50h ; Y postion of the coin
 
 ; heart property
 heart_x DW 140h ; X postion of the heart
@@ -94,13 +112,16 @@ current_width DW 12
 scrollX DW 320
 
 
-
+player_paused DW 0
+paused_y_loc DW 0
 
 ; enemies move status
 enemy_1_move DB 0
 enemy_2_move DB 0
 enemy_3_move DB 0
 coin_move DB 0
+pause_move DB 0
+slow_move DB 0
 heart_move DB 0
 missile_move DB 0
 
@@ -116,11 +137,14 @@ TEXT_GAME_END_MENU DB 'GAME OVER', '$'
 TEXT_PLAY_AGAIN DB 'Press enter to play again', '$'
 TEXT_EXPLANATION DB 'Tutorial:To go up press the SPACE button     You need to avoid the obstacles!', '$'
 TEXT_COINS_HEADER DB 'MadanimCoins:', '$'
+TEXT_PAUSED DB 'You get paused, not the enemies', '$'
 
 filename_player db 'pic.bmp',0
 filename_enemy db 'pics.bmp',0
 filename_missile db 'missile.bmp',0
 filename_coin db 'coin.bmp',0
+filename_pause db 'pause.bmp',0
+filename_slow db 'time.bmp',0
 filename_heart db 'heart.bmp',0
 filename_heart1 db 'heart1.bmp',0
 filename_heart2 db 'heart2.bmp',0
@@ -239,6 +263,37 @@ proc OpenFileCoin
 	call ExitProgram
 	ret
 endp OpenFileCoin
+
+
+proc OpenFilePause
+	; Open file
+	mov ah, 3Dh
+	xor al, al
+	mov dx, offset filename_pause
+	int 21h
+	jc openerror32
+	mov [filehandle], ax
+
+	ret
+	openerror32 :
+	call ExitProgram
+	ret
+endp OpenFilePause
+
+proc OpenFileSlow
+	; Open file
+	mov ah, 3Dh
+	xor al, al
+	mov dx, offset filename_slow
+	int 21h
+	jc openerror31
+	mov [filehandle], ax
+
+	ret
+	openerror31 :
+	call ExitProgram
+	ret
+endp OpenFileSlow
 
 proc OpenFileHeart
 	; Open file
@@ -456,26 +511,26 @@ NoIntersection:
 	sub ax, [enemies_velocity]
 	cmp ax, [character_x]
 
-	jge HeartIntersection ; no intersection
+	jge PauseIntersection ; no intersection
 
 	; X axis intersection - case 2
 	mov ax, [coin_x]
 	cmp ax, [character_x]
 
-	jle HeartIntersection ; no intersection
+	jle PauseIntersection ; no intersection
 
 
 	; Y axis intersection - case 1
 	mov ax, [character_y]
 	add ax, [character_height]
 	cmp ax, [coin_y]
-	jle HeartIntersection ; no intersection
+	jle PauseIntersection ; no intersection
 
 	; Y axis intersection - case 2
 	mov ax, [coin_y]
 	add ax, [enemy_height]
 	cmp [character_y], ax 
-	jge HeartIntersection ; no intersection
+	jge PauseIntersection ; no intersection
 
 	; Here we have an intersection
 	inc [player_coins]
@@ -487,6 +542,83 @@ NoIntersection:
 	ret ; exit because there was an intersection
 
 
+	PauseIntersection:
+	; X axis intersection - case 1
+	mov ax, [pause_x]
+	sub ax, [enemies_velocity]
+	cmp ax, [character_x]
+
+	jge SlowIntersection ; no intersection
+
+	; X axis intersection - case 2
+	mov ax, [pause_x]
+	cmp ax, [character_x]
+
+	jle SlowIntersection ; no intersection
+
+
+	; Y axis intersection - case 1
+	mov ax, [character_y]
+	add ax, [character_height]
+	cmp ax, [pause_y]
+	jle SlowIntersection ; no intersection
+
+	; Y axis intersection - case 2
+	mov ax, [pause_y]
+	add ax, [enemy_height]
+	cmp [character_y], ax 
+	jge SlowIntersection ; no intersection
+
+	; Here we have an intersection
+	mov [player_paused], 1
+	mov ax, [character_y]
+	mov [paused_y_loc], ax
+	mov [count_pause], 0
+
+	; hide coin
+	mov [pause_x], 140h
+	mov [pause_move], 0 ; reset the enemie's move status
+
+	ret ; exit because there was an intersection
+
+
+
+	SlowIntersection:
+	; X axis intersection - case 1
+	mov ax, [slow_x]
+	sub ax, [enemies_velocity]
+	cmp ax, [character_x]
+
+	jge HeartIntersection ; no intersection
+
+	; X axis intersection - case 2
+	mov ax, [slow_x]
+	cmp ax, [character_x]
+
+	jle HeartIntersection ; no intersection
+
+
+	; Y axis intersection - case 1
+	mov ax, [character_y]
+	add ax, [character_height]
+	cmp ax, [slow_y]
+	jle HeartIntersection ; no intersection
+
+	; Y axis intersection - case 2
+	mov ax, [slow_y]
+	add ax, [enemy_height]
+	cmp [character_y], ax 
+	jge HeartIntersection ; no intersection
+
+	; Here we have an intersection
+	mov [slow_music], 1
+	mov [count_slow], 0
+
+	; hide slow
+	mov [slow_x], 140h
+	mov [slow_move], 0 ; reset the enemie's move status
+
+	ret ; exit because there was an intersection
 
 
 
@@ -742,8 +874,14 @@ call prg
 cmp ax, 250 ; check the random number to see if it needs to start moving the missile
 jb CheckmissileMove
 
-cmp ax, 600 ; check the random number to see if it needs to start moving the heart
+cmp ax, 500 ; check the random number to see if it needs to start moving the heart
 jb CheckHeartMove
+
+cmp ax, 630 ; check the random number to see if it needs to start moving the heart
+jb CheckPauseMove
+
+cmp ax, 800 ; check the random number to see if it needs to start moving the slow
+jb CheckSlowMove
 
 cmp ax, 1000 ; check the random number to see if it needs to start moving the coin
 jb CheckCoinMove
@@ -779,6 +917,16 @@ je EnableMoveCoin
 ret
 
 
+CheckPauseMove:
+cmp [pause_move], 0
+je EnableMovePause
+ret
+
+CheckSlowMove:
+cmp [slow_move], 0
+je EnableMoveSlow
+ret
+
 CheckHeartMove:
 cmp [player_lives], 3
 je SkipHeartSend
@@ -789,7 +937,7 @@ ret
 
 CheckEnemy1Move:
 cmp [enemy_1_move], 0
-je EnableMove1
+je JumpCall
 ret
 
 CheckEnemy2Move:
@@ -804,20 +952,33 @@ ret
 
 
 
-
-
-
 EnableMovemissile:
 mov [missile_move], 1 ; turn on the coin's move status
 mov [missile_x], 139h
 ret
-
 
 EnableMoveHeart:
 call RandomCoinY ; dx contains the random number
 mov [heart_y], dx
 mov [heart_move], 1 ; turn on the coin's move status
 mov [heart_x], 139h
+ret
+
+
+EnableMovePause:
+call RandomCoinY ; dx contains the random number
+mov [pause_y], dx
+mov [pause_move], 1 ; turn on the coin's move status
+mov [pause_x], 139h
+ret
+
+
+
+EnableMoveSlow:
+call RandomCoinY ; dx contains the random number
+mov [slow_y], dx
+mov [slow_move], 1 ; turn on the coin's move status
+mov [slow_x], 139h
 ret
 
 EnableMoveCoin:
@@ -827,6 +988,10 @@ mov [coin_move], 1 ; turn on the coin's move status
 mov [coin_x], 139h
 ret
 
+
+
+JumpCall:
+jmp EnableMove1
 
 EnableMove3:
 mov [enemy_3_move], 1 ; turn on the enemie's move status
@@ -874,6 +1039,15 @@ CheckMoveStatusCoin:
 cmp [coin_move], 1
 je MoveCoin
 
+
+CheckMoveStatusPause:
+cmp [pause_move], 1
+je MovePause
+
+CheckMoveStatusSlow:
+cmp [slow_move], 1
+je MoveSlow
+
 CheckMoveStatusHeart:
 cmp [heart_move], 1
 je MoveHeart
@@ -900,8 +1074,16 @@ jmp CheckMoveStatusCoin
 
 MoveCoin:
 sub [coin_x], ax
-jmp CheckMoveStatusHeart
+jmp CheckMoveStatusPause
 
+
+MovePause:
+sub [pause_x], ax
+jmp CheckMoveStatusSlow
+
+MoveSlow:
+sub [slow_x], ax
+jmp CheckMoveStatusHeart
 
 MoveHeart:
 sub [heart_x], ax
@@ -935,6 +1117,14 @@ CheckResetCoin:
 cmp [coin_x], 8 ; checking if it's about to hit the end of the map
 jl ResetCoinX
 
+CheckResetPause:
+cmp [pause_x], 8 ; checking if it's about to hit the end of the map
+jl ResetPauseX
+
+
+CheckResetSlow:
+cmp [slow_x], 8 ; checking if it's about to hit the end of the map
+jl ResetSlowX
 
 CheckResetHeart:
 cmp [heart_x], 8 ; checking if it's about to hit the end of the map
@@ -966,8 +1156,18 @@ jmp CheckResetCoin
 ResetCoinX:
 mov [coin_x], 140h
 mov [coin_move], 0 ; reset the coin's move status
-jmp CheckResetHeart
+jmp CheckResetPause
 
+
+ResetPauseX:
+mov [pause_x], 140h
+mov [pause_move], 0 ; reset the coin's move status
+jmp CheckResetSlow
+
+ResetSlowX:
+mov [slow_x], 140h
+mov [slow_move], 0 ; reset the coin's move status
+jmp CheckResetHeart
 
 ResetHeartX:
 mov [heart_x], 140h
@@ -1134,6 +1334,45 @@ proc DrawCoinProc
   ret
  endp DrawCoinProc
 
+proc DrawPauseProc
+	mov [current_height], 16
+	mov [current_width], 16
+
+  ;Draw coin
+	mov ax, [pause_y] ; y pos of the coin
+	mov [current_y], ax ; y pos of the coin
+	mov ax, [pause_x] ; x pos of the coin
+	mov [current_x], ax ; x pos of the coin
+
+
+  call OpenFilePause
+  call ReadHeader
+  call ReadPalette
+  call CopyPal
+  call CopyBitmap
+  call CloseFile
+  ret
+ endp DrawPauseProc
+
+proc DrawSlowProc
+	mov [current_height], 16
+	mov [current_width], 16
+
+  ;Draw slow
+	mov ax, [slow_y] ; y pos of the coin
+	mov [current_y], ax ; y pos of the coin
+	mov ax, [slow_x] ; x pos of the coin
+	mov [current_x], ax ; x pos of the coin
+
+
+  call OpenFileSlow
+  call ReadHeader
+  call ReadPalette
+  call CopyPal
+  call CopyBitmap
+  call CloseFile
+  ret
+ endp DrawSlowProc
 
 proc DrawHeartProc
 	mov [current_height], 16
@@ -1210,6 +1449,15 @@ proc DrawEnemies
 	cmp [coin_move], 1
 	je DrawCoin
 
+	CheckPause:
+	cmp [pause_move], 1
+	je DrawPause
+
+	CheckSlow:
+	cmp [slow_move], 1
+	je DrawSlow
+
+
 	CheckHeart:
 	cmp [Heart_move], 1
 	je DrawHeart
@@ -1276,6 +1524,15 @@ ret
 
 DrawCoin:
 call DrawCoinProc
+jmp CheckPause
+
+
+DrawPause:
+call DrawPauseProc
+jmp CheckSlow
+
+DrawSlow:
+call DrawSlowProc
 jmp CheckHeart
 
 DrawHeart:
@@ -1627,13 +1884,14 @@ mov cx, 65535
     loop totalloop2
     call CloseFileWav
 
+    mov [delay], 1200
     ret
 endp PlayGameOverSound
 
 
 proc InitiateMusic
 mov ah, 3Dh
-		mov [delay], 1200
+mov [delay], 1200
     xor al, al
     lea dx, [filename_wav_music]
     int 21h
@@ -1649,10 +1907,64 @@ mov ah, 3Dh
 endp InitiateMusic
 
 
+proc MusicDelay
+
+cmp [slow_music], 1
+je SlowMusic
+
+mov [delay], 1200
+ret
+
+SlowMusic:
+mov [delay], 2700
+inc [count_slow]
+
+cmp [count_slow], 100
+je StopSlow
+ret
+
+StopSlow:
+mov [slow_music], 0
+ret
+endp MusicDelay
 
 
+proc PausePlayer
+cmp [player_paused], 1
+je Pause
+ret
+
+Pause:
+	mov ax, [paused_y_loc]
+	mov [character_y], ax
 
 
+	call DrawPauseText
+
+inc [count_pause]
+
+cmp [count_pause], 50
+je StopPause
+ret
+
+StopPause:
+mov [player_paused], 0
+ret
+endp PausePlayer
+
+proc DrawPauseText
+; Draws the coins header
+	mov ah, 02h ; cursor position
+	mov bh, 00h ; page number
+	mov dh, 7h ; row
+	mov dl, 2h ; column
+	int 10h 
+
+	mov ah, 09h ; write string to standart output
+	lea dx, [TEXT_PAUSED]
+	int 21h
+	ret
+	endp DrawPauseText
 
 
 SHOW_GAME_OVER:
@@ -1707,6 +2019,8 @@ start:
 
 	call ClearScreen
 
+	call MusicDelay
+	
 
 	call BackgroundMove
 
@@ -1725,6 +2039,7 @@ start:
 
 	call MoveEnemies
 	
+	call PausePlayer
 	call userInterfaceDraw
 	call DrawHeartBar
 
