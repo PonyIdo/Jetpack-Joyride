@@ -106,7 +106,8 @@ missile_y DW 40 ; Y postion of the missile
 current_height DW 40
 current_width DW 12
 
-
+score_text db "Score:$"
+score dw 10
 
 
 scrollX DW 320
@@ -138,6 +139,8 @@ TEXT_PLAY_AGAIN DB 'Press enter to play again', '$'
 TEXT_EXPLANATION DB 'Tutorial:To go up press the SPACE button     You need to avoid the obstacles!', '$'
 TEXT_COINS_HEADER DB 'MadanimCoins:', '$'
 TEXT_PAUSED DB 'You get paused, not the enemies', '$'
+TEXT_SCORE_HEADER DB 'score:', '$'
+
 
 filename_player db 'pic.bmp',0
 filename_enemy db 'pics.bmp',0
@@ -783,7 +786,7 @@ proc userInterfaceDraw
 	; Draws the coins status
 	mov ah, 02h ; cursor position
 	mov bh, 00h ; page number
-	mov dh, 04h ; row
+	mov dh, 03h ; row
 	mov dl, 14h ; column
 	int 10h 
 
@@ -797,15 +800,97 @@ proc userInterfaceDraw
 	; Draws the coins header
 	mov ah, 02h ; cursor position
 	mov bh, 00h ; page number
-	mov dh, 04h ; row
+	mov dh, 03h ; row
 	mov dl, 7h ; column
 	int 10h 
 
 	mov ah, 09h ; write string to standart output
 	lea dx, [TEXT_COINS_HEADER]
 	int 21h
+
+
+
+
+
+	; Draws the coins header
+	mov ah, 02h ; cursor position
+	mov bh, 00h ; page number
+	mov dh, 05h ; row
+	mov dl, 7h ; column
+	int 10h 
+
+	mov ah, 09h ; write string to standart output
+	lea dx, [TEXT_SCORE_HEADER]
+	int 21h
+
+
+
+
+
+		mov dl, 6
+		mov ax, [offset score]
+		call PrintNumber
+
+
 	ret
 endp userInterfaceDraw
+
+proc PrintNumber
+	push cx
+	push dx
+	push bx
+    ; initilize count:
+    xor cx, cx
+    xor dx, dx
+
+    Label1:
+        ; if ax is zero:
+        cmp ax,0
+        je Print1
+        
+        ; initilize bx to 10:
+        mov bx,10
+        
+		xor dx, dx
+        ; extract the last digit:
+        div bx
+        
+        ; push it in the stack:
+        push dx
+        
+        ; increment the count:
+        inc cx
+        
+        jmp Label1
+
+    Print1:
+        ; check if count:
+
+        ; is greater than zero:
+        cmp cx,0
+        je Endprint
+        
+        ; pop the top of stack:
+        pop dx
+
+        ; add 48 so that it represents the ASCII value of digits:
+        add dx, '0' 
+        
+        ; interuppt to print a character:
+        mov ah,02h
+        int 21h
+        
+        ; decrease the count:
+        dec cx
+        jmp Print1
+    
+    Endprint:
+		pop bx
+		pop dx
+		pop cx
+        ret
+endp
+
 
 
 
@@ -2013,7 +2098,7 @@ start:
 	; the time has changed and we can change the new frame
 	push dx
 	
-
+	inc [score]
 
 	call RealPlay
 
