@@ -20,13 +20,17 @@ pit2 db 42h
 
 
 
-
+; delay
 default_delay dw 1200
-slow_delay dw 1600
+game_over_delay dw 1700
+slow_delay dw 2700
 
-delay dw 1200 
+
+
+delay dw 0 
 count_slow dw 0
 count_pause dw 0
+
 
 filename_wav_game_over db "GameOver.wav", 0 
 filename_wav_music db "music.wav", 0 
@@ -67,15 +71,15 @@ rand_fast DW 2000
 
 ; enemy 1 property
 enemy_1_x DW 140h ; X postion of the enemy 1
-enemy_1_y DW 32h ; Y postion of the enemy 1 - 100
+enemy_1_y DW 8h ; Y postion of the enemy 1 - 100
 
 ; enemy 2 property
 enemy_2_x DW 140h ; X postion of the enemy 2
-enemy_2_y DW 64h ; Y postion of the enemy 2 - 200
+enemy_2_y DW 70 ; Y postion of the enemy 2 - 200
 
 ; enemy 3 property
 enemy_3_x DW 140h ; X postion of the enemy 3
-enemy_3_y DW 96h ; Y postion of the enemy 3 - 300
+enemy_3_y DW 84h ; Y postion of the enemy 3 - 300
 
 
 
@@ -107,7 +111,7 @@ current_height DW 40
 current_width DW 12
 
 score_text db "Score:$"
-score dw 10
+score dw 0
 
 
 scrollX DW 320
@@ -1324,6 +1328,7 @@ proc CharacterMove
 	mov bx, [WINDOW_HEIGHT]
 	sub bx, ax ; because we do not want to touch the ground, we want to touch nearby
 	mov cx, [character_height]
+	add cx, 20
 	sub bx,cx ; the height of the character is cx
 	
 	add [character_y], ax ; updating the character's initial y pos after moving
@@ -1377,6 +1382,9 @@ proc CheckGameOver
 	mov [enemy_1_x], 140h
 	mov [enemy_2_x], 140h
 	mov [enemy_3_x], 140h
+
+
+	mov [score], 0
 
 	; Game active status - stops the game
 	mov [game_active], 00h
@@ -1937,7 +1945,8 @@ endp RealPlay
 
 
 proc PlayGameOverSound
-mov [delay], 1700
+mov cx, [game_over_delay]
+mov [delay], cx
 	mov ah, 3Dh
     xor al, al
     lea dx, [filename_wav_game_over]
@@ -1968,15 +1977,16 @@ mov cx, 65535
     pop cx
     loop totalloop2
     call CloseFileWav
-
-    mov [delay], 1200
+    mov cx, [default_delay]
+    mov [delay], cx
     ret
 endp PlayGameOverSound
 
 
 proc InitiateMusic
-mov ah, 3Dh
-mov [delay], 1200
+	mov ah, 3Dh
+	mov cx, [default_delay]
+    mov [delay], cx
     xor al, al
     lea dx, [filename_wav_music]
     int 21h
@@ -1997,11 +2007,13 @@ proc MusicDelay
 cmp [slow_music], 1
 je SlowMusic
 
-mov [delay], 1200
+mov cx, [default_delay]
+mov [delay], cx
 ret
 
 SlowMusic:
-mov [delay], 2700
+mov cx, [slow_delay]
+mov [delay], cx
 inc [count_slow]
 
 cmp [count_slow], 100
