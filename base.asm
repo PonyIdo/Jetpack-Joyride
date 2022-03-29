@@ -133,7 +133,7 @@ missile_move DB 0
 
 
 player_lives DB 3 ;Player lives - always starts with 3
-player_coins DB 0
+player_coins DW 1
 
 ; texts to print on screen
 
@@ -786,17 +786,17 @@ endp CheckIntersection
 
 proc userInterfaceDraw
 
-	call UpdateCoinsText
+	;call UpdateCoinsText
 	; Draws the coins status
-	mov ah, 02h ; cursor position
-	mov bh, 00h ; page number
-	mov dh, 03h ; row
-	mov dl, 14h ; column
-	int 10h 
+	;mov ah, 02h ; cursor position
+	;mov bh, 00h ; page number
+	;mov dh, 03h ; row
+	;mov dl, 14h ; column
+	;int 10h 
 
-	mov ah, 09h ; write string to standart output
-	lea dx, [TEXT_PLAYER_COINS]
-	int 21h
+	;mov ah, 09h ; write string to standart output
+	;lea dx, [TEXT_PLAYER_COINS]
+	;int 21h
 
 
 
@@ -812,6 +812,9 @@ proc userInterfaceDraw
 	lea dx, [TEXT_COINS_HEADER]
 	int 21h
 
+	mov dl, 6
+	mov ax, [offset player_coins]
+	call PrintNumber
 
 
 
@@ -899,13 +902,7 @@ endp
 
 
 
-proc UpdateCoinsText
-	xor ax, ax
-	mov al, [player_coins]
 
-	add al, 30h ; converting to ascii
-	mov [TEXT_PLAYER_COINS], al
-endp UpdateCoinsText
 
 
 
